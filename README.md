@@ -8,7 +8,7 @@ The app is intentionally **not** another exhaustive map of every business nearby
 
 - **Interesting, not exhaustive.** Prefer a smaller set of meaningful discoveries over thousands of generic POIs.
 - **Native Apple stack.** Swift, SwiftUI, MapKit, Core Location, CloudKit, UserNotifications, BackgroundTasks, and other first-party APIs where practical.
-- **No application server.** The app should work without a custom backend. Shared data is stored in CloudKit's public database where appropriate.
+- **No application server.** Every installed app is capable of discovering missing POIs itself. Shared results are cached cooperatively in CloudKit's public database.
 - **Privacy first.** Location history stays on-device. CloudKit should not receive a user's continuous movement history.
 - **Open-data friendly.** Canonical POIs should keep source/provenance and attribution metadata.
 - **Human feedback improves ranking.** Visitors can vote whether a place was actually worth visiting.
@@ -198,29 +198,116 @@ Preferred source layers:
 5. **Official open tourism datasets** — when licensing permits commercial redistribution.
 6. **MapKit / Apple Maps** — runtime map, route, ETA and live place lookup where permitted; do not use it as the source for an independently stored bulk POI database.
 
-### No server ingestion
+### Cooperative client-side POI discovery
 
-Initial POIs should be produced by a **developer-side import tool** run locally during development/release preparation:
+Every installed app participates in growing the shared catalog.
+
+The normal flow for a trip or map region is:
 
 ```
-Open data dumps/APIs
+User plans trip / opens region
         ↓
-Local importer / normalizer
+Query CloudKit Public Database
         ↓
-Validation + deduplication
-        ↓
-Versioned seed dataset
-        ↓
-Developer-only CloudKit seeder
-        ↓
-CloudKit Public Database
-        ↓
-iOS app
+Enough relevant POIs?
+   ┌────┴────┐
+  yes        no
+   │          ↓
+   │    Query allowed open-data sources
+   │    for only the missing corridor/region
+   │          ↓
+   │    normalize + classify + deduplicate
+   │          ↓
+   │    validate provenance/license
+   │          ↓
+   │    publish source-backed records
+   │    to CloudKit Public Database
+   │          ↓
+   └────── merge + rank locally
 ```
 
-The production iOS app should not crawl Wikidata or OpenStreetMap globally.
+The production app therefore **may query Wikidata and other suitable open-data APIs directly**, but only on demand for the geographic area relevant to the user's current action. It must not attempt to crawl or mirror the world.
 
-The importer must retain per-field/source provenance and licenses so attribution and future updates remain possible.
+#### Cache-first behavior
+
+Before contacting an external source, the app should check CloudKit for coverage of the requested corridor/region and the freshness of existing records.
+
+A region should trigger enrichment when, for example:
+
+- no shared POIs exist,
+- POI density is below a configured threshold,
+- important discovery categories are missing,
+- cached source data is older than its refresh policy,
+- or the user explicitly requests a deeper search.
+
+The result of a successful external lookup should be shared back to CloudKit when the user has an active iCloud account and the source license permits redistribution. Devices without an iCloud account can still use the discovered POIs locally but cannot publish to CloudKit.
+
+#### Source adapters
+
+Implement source-specific adapters behind a common interface. Initial candidates:
+
+1. **Wikidata** — preferred first fallback for notable places because identifiers and structured relationships make deduplication reliable.
+2. **Wikimedia/Wikipedia/Wikivoyage** — enrichment and notability/context signals.
+3. **OpenStreetMap** — only through an API/provider whose usage policy permits this application's query pattern. The public Nominatim service must not be used to systematically download POIs in an area.
+4. **Official tourism open-data APIs** — where licensing and request limits allow client use.
+
+Each adapter must implement:
+
+- geographic query support
+- pagination
+- rate limiting/backoff
+- cancellation
+- source-specific freshness policy
+- attribution/license metadata
+- normalization into `PlaceCandidate`
+- stable external IDs for deduplication
+
+#### CloudKit as a cooperative cache, not a trusted authority
+
+Records created by clients must be treated as **source-backed shared discoveries**, not blindly trusted editorial data.
+
+CloudKit's public database lets authenticated users create records they own; other clients can read those records but should not assume they can modify them. The data model must therefore avoid requiring arbitrary clients to edit somebody else's record.
+
+Use stable canonical source keys such as:
+
+```
+wikidata:Q12345
+osm:node:123456789
+tourismDE:<provider-id>
+```
+
+to deduplicate discoveries locally and to derive deterministic CloudKit record names where practical.
+
+If two devices race to publish the same canonical source object:
+
+- one create may succeed,
+- the other should handle the conflict by fetching the existing record,
+- neither should create a duplicate fallback record.
+
+For fields that may evolve independently, prefer append-only/source-specific enrichment records rather than relying on arbitrary clients editing the original owner's record.
+
+Because there is no trusted backend, a modified client can still attempt to publish bad data. The app should mitigate this by:
+
+- accepting shared records only when source provenance is present,
+- validating structure/ranges locally,
+- preferring authoritative source fields over user-written text,
+- allowing clients to re-resolve suspicious/stale records against the source,
+- keeping user suggestions separate from source-backed discoveries,
+- never treating CloudKit presence alone as proof of quality.
+
+#### Request discipline
+
+External discovery must be demand-driven and conservative:
+
+- query only the trip corridor or visible region needed now,
+- cache results in SwiftData and CloudKit,
+- coalesce overlapping requests,
+- avoid repeated queries for recently covered regions,
+- implement exponential backoff and source-specific quotas,
+- send an identifying User-Agent where required,
+- allow a source adapter to be remotely/locally disabled via app configuration if its usage policy changes.
+
+The goal is cooperative sparse enrichment, not distributed bulk crawling.
 
 ### Place scoring
 
@@ -387,15 +474,18 @@ Principles:
 The first usable milestone should demonstrate the entire vertical slice:
 
 1. launch native SwiftUI app
-2. load curated POIs from CloudKit public DB
-3. show them on a MapKit map and in a list
-4. support interests
-5. create a trip and route
-6. rank POIs around the route
-7. calculate detour time for top candidates
-8. locally verify that a user visited a POI
-9. allow an eligible visitor to vote
-10. sync/show aggregate vote information
+2. create a trip and route
+3. query CloudKit Public Database for route-corridor POIs
+4. detect insufficient coverage
+5. query Wikidata for the missing corridor/region
+6. normalize/deduplicate the returned candidates
+7. publish source-backed discoveries to CloudKit when permitted
+8. show the merged discoveries on a MapKit map and in a list
+9. support interests and ranking
+10. calculate detour time for top candidates
+11. locally verify that a user visited a POI
+12. allow an eligible visitor to vote
+13. sync/show aggregate vote information
 
 Only after that vertical slice should the project broaden data ingestion and background discovery.
 
