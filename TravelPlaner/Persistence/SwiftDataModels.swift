@@ -268,6 +268,12 @@ final class SwiftDataVisitEligibilityStore {
         guard let record = (try? context.fetch(FetchDescriptor<PersistedVisitEligibility>()))?.first(where: { $0.placeID == placeID }) else { return false }
         return record.expiresAt >= now
     }
+
+    func observedAt(for placeID: UUID, now: Date = .now) -> Date? {
+        guard let record = (try? context.fetch(FetchDescriptor<PersistedVisitEligibility>()))?.first(where: { $0.placeID == placeID }),
+              record.expiresAt >= now else { return nil }
+        return record.observedAt
+    }
 }
 
 @MainActor

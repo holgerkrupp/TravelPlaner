@@ -184,6 +184,7 @@ final class PersistenceAndCloudKitTests: XCTestCase {
 
         store.record(evidence, expiresAt: observedAt.addingTimeInterval(60))
         XCTAssertTrue(store.isEligible(placeID: placeID, now: observedAt.addingTimeInterval(30)))
+        XCTAssertEqual(store.observedAt(for: placeID, now: observedAt.addingTimeInterval(30)), observedAt)
         XCTAssertFalse(store.isEligible(placeID: placeID, now: observedAt.addingTimeInterval(61)))
     }
 

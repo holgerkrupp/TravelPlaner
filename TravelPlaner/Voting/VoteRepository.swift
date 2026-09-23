@@ -56,22 +56,33 @@ struct CloudKitVoteService: VoteCloudService {
 
     func fetchVotes(for placeID: UUID) async throws -> [PlaceVote] {
         let query = CKQuery(recordType: "PlaceVote", predicate: NSPredicate(format: "placeID == %@", placeID.uuidString))
-        let result = try await database.records(matching: query, resultsLimit: 100)
-        return result.matchResults.compactMap { _, value in
-            guard let record = try? value.get(),
-                  let rawValue = record["value"] as? String,
-                  let value = VoteValue(rawValue: rawValue),
-                  let rawVerification = record["verificationType"] as? String,
-                  let verification = VoteVerificationType(rawValue: rawVerification) else { return nil }
-            return PlaceVote(
-                id: UUID(uuidString: record.recordID.recordName) ?? UUID(),
-                placeID: placeID,
-                value: value,
-                verification: verification,
-                coarseVisitMonth: record["visitMonth"] as? Date,
-                updatedAt: record["updatedAt"] as? Date ?? .distantPast
-            )
-        }
+        var votes: [PlaceVote] = []
+        var cursor: CKQueryOperation.Cursor?
+        repeat {
+            let result: (matchResults: [(CKRecord.ID, Result<CKRecord, Error>)], queryCursor: CKQueryOperation.Cursor?)
+            if let cursor {
+                result = try await database.records(continuingMatchFrom: cursor, resultsLimit: 100)
+            } else {
+                result = try await database.records(matching: query, resultsLimit: 100)
+            }
+            votes.append(contentsOf: result.matchResults.compactMap { _, value in
+                guard let record = try? value.get(),
+                      let rawValue = record["value"] as? String,
+                      let value = VoteValue(rawValue: rawValue),
+                      let rawVerification = record["verificationType"] as? String,
+                      let verification = VoteVerificationType(rawValue: rawVerification) else { return nil }
+                return PlaceVote(
+                    id: UUID(uuidString: record.recordID.recordName) ?? UUID(),
+                    placeID: placeID,
+                    value: value,
+                    verification: verification,
+                    coarseVisitMonth: record["visitMonth"] as? Date,
+                    updatedAt: record["updatedAt"] as? Date ?? .distantPast
+                )
+            })
+            cursor = result.queryCursor
+        } while cursor != nil
+        return votes
     }
 
     static func recordID(userKey: String, placeID: UUID) -> CKRecord.ID {

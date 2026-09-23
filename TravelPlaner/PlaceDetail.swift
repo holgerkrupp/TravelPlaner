@@ -142,7 +142,9 @@ struct PlaceDetailView: View {
                 verification = .currentProximity
             }
             let cloud = try await CloudKitVoteService.forCurrentUser()
-            let vote = PlaceVote(id: UUID(), placeID: place.id, value: value, verification: verification, coarseVisitMonth: Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: .now)), updatedAt: .now)
+            let visitDate = eligibilityStore.observedAt(for: place.id) ?? .now
+            let visitMonth = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: visitDate))
+            let vote = PlaceVote(id: UUID(), placeID: place.id, value: value, verification: verification, coarseVisitMonth: visitMonth, updatedAt: .now)
             try await VoteCoordinator(cloud: cloud, offlineQueue: appState.offlineWriteQueue).submit(vote, eligibility: VisitEligibility(isEligible: true, reason: "Verified proximity"))
             aggregate = await VoteCoordinator(cloud: cloud).aggregate(for: place.id)
             SwiftDataVoteAggregateStore(context: modelContext).store(aggregate!, for: place.id)
