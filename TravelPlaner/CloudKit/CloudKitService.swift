@@ -64,8 +64,9 @@ struct PublicCloudKitService: CloudKitService {
                 _ = try await database.save(record)
             } catch let error as CKError where error.code == .serverRecordChanged {
                 // The deterministic record ID means another device already published
-                // this source object. Treat that as convergence, never as permission
-                // to create a random duplicate.
+                // this source object. Resolve the existing record so the foreground
+                // operation converges without creating a random duplicate.
+                _ = try? await database.record(for: record.recordID)
                 continue
             }
         }

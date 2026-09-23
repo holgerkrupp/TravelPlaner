@@ -14,7 +14,7 @@ struct CloudKitPlaceRecordMapper: Sendable {
     }
 
     static func makeRecord(from place: Place) throws -> CKRecord {
-        guard let source = place.sources.first else { throw MappingError.missingSource }
+        guard let source = place.sources.sorted(by: { $0.canonicalKey < $1.canonicalKey }).first else { throw MappingError.missingSource }
         let record = CKRecord(recordType: recordType, recordID: recordID(for: place))
         record["stableID"] = place.id.uuidString as NSString
         record["name"] = place.name as NSString

@@ -71,6 +71,17 @@ final class PersistenceAndCloudKitTests: XCTestCase {
         XCTAssertEqual(restored.coordinate.latitude, place.coordinate.latitude, accuracy: 0.000001)
     }
 
+    func testCloudKitRecordIdentityUsesTheSameCanonicalSourceThatIsStored() throws {
+        let first = try PlaceSourceReference(source: .wikidata, externalID: "Q-z")
+        let second = try PlaceSourceReference(source: .openStreetMap, externalID: "node:1")
+        let place = try Place(name: "Multi-source", coordinate: try GeoCoordinate(latitude: 48, longitude: 11), category: .other, editorialReason: "Fixture.", sources: [first, second])
+
+        let record = try CloudKitPlaceRecordMapper.makeRecord(from: place)
+        XCTAssertEqual(record.recordID, CloudKitPlaceRecordMapper.recordID(for: place))
+        XCTAssertEqual(record["source"] as? String, "openStreetMap")
+        XCTAssertEqual(record["externalID"] as? String, "node:1")
+    }
+
     func testPlaceSnapshotSurvivesStoreReload() throws {
         let container = try TravelPlanerSchema.container(inMemory: true)
         let context = ModelContext(container)
