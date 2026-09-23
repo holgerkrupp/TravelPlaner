@@ -73,6 +73,19 @@ final class PersistenceAndCloudKitTests: XCTestCase {
         XCTAssertEqual(reloaded?.places, [place])
     }
 
+    func testPlaceSnapshotEvictionUsesDefinedRetentionWindow() throws {
+        let container = try TravelPlanerSchema.container(inMemory: true)
+        let context = ModelContext(container)
+        let store = SwiftDataPlaceSnapshotStore(context: context)
+        let source = try PlaceSourceReference(source: .wikidata, externalID: "Q-old-cache")
+        let place = try Place(name: "Old cache", coordinate: try GeoCoordinate(latitude: 1, longitude: 1), category: .other, editorialReason: "Fixture.", sources: [source])
+        let now = Date(timeIntervalSince1970: 10_000_000)
+        store.store([place], context: "old", now: now.addingTimeInterval(-SwiftDataPlaceSnapshotStore.retention - 1))
+
+        XCTAssertEqual(store.evictExpired(now: now), 1)
+        XCTAssertNil(store.load(context: "old", now: now))
+    }
+
     func testVoteAggregateSnapshotSurvivesStoreReload() throws {
         let container = try TravelPlanerSchema.container(inMemory: true)
         let placeID = UUID()

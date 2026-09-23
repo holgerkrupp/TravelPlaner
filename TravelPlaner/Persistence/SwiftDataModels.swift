@@ -100,11 +100,13 @@ enum TravelPlanerSchema {
 
 @MainActor
 final class SwiftDataPlaceSnapshotStore {
+    static let retention: TimeInterval = 30 * 24 * 60 * 60
     private let context: ModelContext
 
     init(context: ModelContext) { self.context = context }
 
     func store(_ places: [Place], context key: String, now: Date = .now) {
+        evictExpired(now: now)
         let existing = (try? context.fetch(FetchDescriptor<PersistedPlaceSnapshot>()))?.first { $0.cacheKey == key }
         if let existing {
             existing.placesData = (try? JSONEncoder().encode(PlaceDeduplicator.unique(places))) ?? Data()
@@ -115,9 +117,19 @@ final class SwiftDataPlaceSnapshotStore {
         try? context.save()
     }
 
-    func load(context key: String) -> CachedPlaceSet? {
+    func load(context key: String, now: Date = .now) -> CachedPlaceSet? {
+        evictExpired(now: now)
         guard let stored = (try? context.fetch(FetchDescriptor<PersistedPlaceSnapshot>()))?.first(where: { $0.cacheKey == key }) else { return nil }
         return CachedPlaceSet(places: stored.places, cachedAt: stored.cachedAt, context: key)
+    }
+
+    @discardableResult
+    func evictExpired(now: Date = .now) -> Int {
+        let cutoff = now.addingTimeInterval(-Self.retention)
+        let expired = (try? context.fetch(FetchDescriptor<PersistedPlaceSnapshot>()))?.filter { $0.cachedAt < cutoff } ?? []
+        expired.forEach(context.delete)
+        if !expired.isEmpty { try? context.save() }
+        return expired.count
     }
 }
 

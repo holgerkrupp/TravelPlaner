@@ -18,3 +18,7 @@ TravelPlaner uses the public database of `iCloud.de.holgerkrupp.travelplaner`.
 6. Promote the schema only after the mapping and conflict tests pass.
 
 The app remains usable without an iCloud account: CloudKit failures leave locally discovered and cached Places visible, while publication and vote/suggestion writes are deferred or rejected without blocking browsing.
+
+## Local cache policy
+
+SwiftData place snapshots are retained for 30 days, refreshed when the same context is used, and evicted before reads/writes once older than that window. Cached vote aggregates are replaced by newer snapshots and remain timestamped so the UI can distinguish a locally restored value from a fresh CloudKit result. No continuous location history is cached.
