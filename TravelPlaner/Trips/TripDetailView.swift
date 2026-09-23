@@ -10,6 +10,9 @@ struct TripDetailView: View {
     @State private var searchError: String?
     @State private var route: MKRoute?
     @State private var camera: MapCameraPosition = .automatic
+    @State private var detours: [DetourCandidate] = []
+    @State private var isDiscovering = false
+    @State private var detourMessage: String?
 
     var body: some View {
         List {
@@ -58,6 +61,27 @@ struct TripDetailView: View {
                 .disabled(destinationQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSearching)
                 if let searchError { Text(searchError).foregroundStyle(.red).font(.caption) }
             }
+            if trip.stops.count >= 2 {
+                Section("Worth a detour") {
+                    Button {
+                        Task { await discoverDetours() }
+                    } label: {
+                        Label(isDiscovering ? "Searching route corridor…" : "Find worthwhile detours", systemImage: "sparkles.magnifyingglass")
+                    }
+                    .disabled(isDiscovering)
+                    ForEach(detours) { detour in
+                        VStack(alignment: .leading) {
+                            Text(detour.place.name).font(.headline)
+                            Text(detour.place.editorialReason).font(.subheadline)
+                            if let route = detour.approximateDetour {
+                                Text("Approx. \(route.expectedTravelTime / 60, specifier: "%.0f") min of route segments")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    if let detourMessage { Text(detourMessage).font(.caption).foregroundStyle(.secondary) }
+                }
+            }
         }
         .navigationTitle(trip.name)
     }
@@ -102,5 +126,23 @@ struct TripDetailView: View {
         request.transportType = .automobile
         do { route = try await MKDirections(request: request).calculate().routes.first }
         catch { route = nil }
+    }
+
+    @MainActor
+    private func discoverDetours() async {
+        isDiscovering = true
+        detourMessage = nil
+        defer { isDiscovering = false }
+        let coordinator = TripDiscoveryCoordinator(
+            discovery: DiscoveryPipeline(cloudKit: PublicCloudKitService(), adapters: [WikidataGeoSearchAdapter(), OpenStreetMapOverpassAdapter()], evaluator: CoverageEvaluator(policy: CoveragePolicy())),
+            route: MapKitRouteService(),
+            ranker: DiscoveryRanker()
+        )
+        do {
+            detours = try await coordinator.discover(for: trip.value)
+            if detours.isEmpty { detourMessage = "No worthwhile discoveries were found in this corridor." }
+        } catch {
+            detourMessage = "Route discovery is unavailable right now; cached trip data remains available."
+        }
     }
 }

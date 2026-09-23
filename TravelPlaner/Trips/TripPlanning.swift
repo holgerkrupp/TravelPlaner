@@ -19,12 +19,17 @@ struct TripStop: Codable, Equatable, Identifiable, Sendable {
 struct RouteCorridor: Equatable, Sendable {
     let stops: [TripStop]
     let widthMeters: CLLocationDistance
+
+    nonisolated init(stops: [TripStop], widthMeters: CLLocationDistance) {
+        self.stops = stops
+        self.widthMeters = widthMeters
+    }
 }
 
 struct RouteCandidateFilter: Sendable {
     let corridor: RouteCorridor
 
-    func isNearCorridor(_ place: Place, approximateDistanceMeters: CLLocationDistance) -> Bool {
+    nonisolated func isNearCorridor(_ place: Place, approximateDistanceMeters: CLLocationDistance) -> Bool {
         guard !corridor.stops.isEmpty else { return false }
         return corridor.stops.contains { stop in
             let from = CLLocation(latitude: stop.coordinate.latitude, longitude: stop.coordinate.longitude)

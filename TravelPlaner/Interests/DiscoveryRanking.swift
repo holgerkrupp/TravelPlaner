@@ -11,7 +11,7 @@ struct RankingInputs: Equatable, Sendable {
     var detourPenalty: Double
     var fatiguePenalty: Double
 
-    init(
+    nonisolated init(
         baseNotability: Double,
         uniqueness: Double = 0.5,
         sourceConfidence: Double = 0.5,
@@ -56,9 +56,9 @@ struct DiscoveryScore: Equatable, Sendable, Comparable {
 struct DiscoveryRanker: Sendable {
     let weights: RankingWeights
 
-    init(weights: RankingWeights = RankingWeights()) { self.weights = weights }
+    nonisolated init(weights: RankingWeights = RankingWeights()) { self.weights = weights }
 
-    func score(_ input: RankingInputs) -> DiscoveryScore {
+    nonisolated func score(_ input: RankingInputs) -> DiscoveryScore {
         let interest = input.selectedInterestCount == 0
             ? 0.5
             : min(1, Double(input.matchingInterestCount) / Double(input.selectedInterestCount))
@@ -89,12 +89,12 @@ struct DiscoveryRanker: Sendable {
         return DiscoveryScore(total: total, components: components, reasons: reasons)
     }
 
-    func rank(_ places: [(Place, RankingInputs)]) -> [(Place, DiscoveryScore)] {
+    nonisolated func rank(_ places: [(Place, RankingInputs)]) -> [(Place, DiscoveryScore)] {
         places.map { ($0.0, score($0.1)) }.sorted {
             if $0.1.total != $1.1.total { return $0.1.total > $1.1.total }
             return $0.0.id.uuidString < $1.0.id.uuidString
         }
     }
 
-    private func clamp(_ value: Double) -> Double { min(1, max(0, value.isFinite ? value : 0)) }
+    nonisolated private func clamp(_ value: Double) -> Double { min(1, max(0, value.isFinite ? value : 0)) }
 }
