@@ -11,11 +11,16 @@ struct DiscoverView: View {
     @State private var locationMessage: String?
     private let locationService = CoreLocationService()
     private let cache = OfflinePlaceCache()
-    private let discoveryService = DiscoveryPipeline(
-        cloudKit: PublicCloudKitService(),
-        adapters: [WikidataGeoSearchAdapter(), OpenStreetMapOverpassAdapter()],
-        evaluator: CoverageEvaluator(policy: CoveragePolicy())
-    )
+    private let discoveryCoordinator: DiscoveryRequestCoordinator
+
+    init() {
+        let pipeline = DiscoveryPipeline(
+            cloudKit: PublicCloudKitService(),
+            adapters: [WikidataGeoSearchAdapter(), OpenStreetMapOverpassAdapter()],
+            evaluator: CoverageEvaluator(policy: CoveragePolicy())
+        )
+        discoveryCoordinator = DiscoveryRequestCoordinator(pipeline: pipeline)
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -77,7 +82,7 @@ struct DiscoverView: View {
         do {
             let location = try await locationService.currentLocation()
             camera = .region(MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 10_000, longitudinalMeters: 10_000))
-            let discovered = try await discoveryService.discover(for: DiscoveryRequest(center: location.coordinate, radius: 10_000))
+            let discovered = try await discoveryCoordinator.discover(for: DiscoveryRequest(center: location.coordinate, radius: 10_000))
             if !discovered.isEmpty {
                 places = discovered
                 await cache.store(discovered, context: "nearby")
