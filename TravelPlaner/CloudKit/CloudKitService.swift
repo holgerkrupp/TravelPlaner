@@ -1,6 +1,10 @@
 import CloudKit
 import Foundation
 
+enum CloudKitConfiguration {
+    static let containerIdentifier = "iCloud.de.holgerkrupp.travelplaner"
+}
+
 protocol CloudKitService: Sendable {
     func fetchPlaces(in region: CoverageRegion) async throws -> [Place]
     func publish(_ places: [Place]) async throws
@@ -13,13 +17,14 @@ struct UnavailableCloudKitService: CloudKitService {
 
 /// The CloudKit boundary is intentionally small; record mapping belongs in a later issue.
 struct PublicCloudKitService: CloudKitService {
-    private let database: CKDatabase
+    private let injectedDatabase: CKDatabase?
 
-    init(database: CKDatabase = CKContainer.default().publicCloudDatabase) {
-        self.database = database
+    init(database: CKDatabase? = nil) {
+        self.injectedDatabase = database
     }
 
     func fetchPlaces(in region: CoverageRegion) async throws -> [Place] {
+        let database = injectedDatabase ?? CKContainer(identifier: CloudKitConfiguration.containerIdentifier).publicCloudDatabase
         let query = CKQuery(recordType: CloudKitPlaceRecordMapper.recordType, predicate: NSPredicate(value: true))
         var records: [CKRecord] = []
         var cursor: CKQueryOperation.Cursor?
@@ -43,6 +48,7 @@ struct PublicCloudKitService: CloudKitService {
     }
 
     func publish(_ places: [Place]) async throws {
+        let database = injectedDatabase ?? CKContainer(identifier: CloudKitConfiguration.containerIdentifier).publicCloudDatabase
         let records = try places.map(CloudKitPlaceRecordMapper.makeRecord)
         for record in records {
             do {

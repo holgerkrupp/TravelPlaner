@@ -43,13 +43,18 @@ struct DiscoveryPipeline: POIDiscoveryService {
 
     func discover(for request: DiscoveryRequest) async throws -> [Place] {
         let region = CoverageRegion(center: request.center, radius: request.radius)
-        let shared = try await cloudKit.fetchPlaces(in: region)
+        let shared = (try? await cloudKit.fetchPlaces(in: region)) ?? []
         if evaluator.isSufficient(shared) { return PlaceDeduplicator.unique(shared) }
         var candidates = shared
+        var discoveredCandidates: [PlaceCandidate] = []
         for adapter in adapters {
             try Task.checkCancellation()
-            candidates.append(contentsOf: try await adapter.discover(in: region).map(\.place))
+            let results = try await adapter.discover(in: region)
+            discoveredCandidates.append(contentsOf: results)
+            candidates.append(contentsOf: results.map(\.place))
         }
+        let publishable = discoveredCandidates.filter(\.canRepublish).map(\.place)
+        if !publishable.isEmpty { try? await cloudKit.publish(publishable) }
         return PlaceDeduplicator.unique(candidates)
     }
 }

@@ -11,7 +11,11 @@ struct AppDependencies: Sendable {
         cloudKit: any CloudKitService = PublicCloudKitService(),
         location: any LocationService = UnavailableLocationService(),
         route: any RouteService = MapKitRouteService(),
-        discovery: any POIDiscoveryService = DiscoveryPipeline(cloudKit: PublicCloudKitService(), adapters: [], evaluator: CoverageEvaluator(policy: CoveragePolicy())),
+        discovery: any POIDiscoveryService = DiscoveryPipeline(
+            cloudKit: PublicCloudKitService(),
+            adapters: [WikidataGeoSearchAdapter(), OpenStreetMapOverpassAdapter()],
+            evaluator: CoverageEvaluator(policy: CoveragePolicy())
+        ),
         persistence: any LocalPersistenceService = InMemoryLocalPersistenceService()
     ) {
         self.cloudKit = cloudKit
