@@ -5,6 +5,7 @@ import SwiftData
 struct DiscoverView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.modelContext) private var modelContext
+    @Query private var interestSelections: [PersistedInterestSelection]
     @State private var places = SamplePlaces.all
     @State private var selectedPlaceID: UUID?
     @State private var camera: MapCameraPosition = .automatic
@@ -13,6 +14,23 @@ struct DiscoverView: View {
     @State private var locationMessage: String?
     private let locationService = CoreLocationService()
     private let discoveryCoordinator: DiscoveryRequestCoordinator
+
+    private var rankedPlaces: [Place] {
+        let selected = interestSelections.first?.interests ?? []
+        let ranker = DiscoveryRanker()
+        let scored = ranker.rank(places.map { place in
+            let matching = place.interests.intersection(selected).count
+            let uniqueness = place.kind == .majorDestination || place.kind == .remoteDestination ? 0.85 : 0.65
+            return (place, RankingInputs(
+                baseNotability: place.baseNotability,
+                uniqueness: uniqueness,
+                sourceConfidence: place.sources.isEmpty ? 0 : 1,
+                matchingInterestCount: matching,
+                selectedInterestCount: selected.count
+            ))
+        })
+        return scored.map(\.0)
+    }
 
     init() {
         let pipeline = DiscoveryPipeline(
@@ -25,7 +43,7 @@ struct DiscoverView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(places, id: \.id, selection: $selectedPlaceID) { place in
+            List(rankedPlaces, id: \.id, selection: $selectedPlaceID) { place in
                 VStack(alignment: .leading, spacing: 4) {
                     Text(place.name).font(.headline)
                     Text(place.editorialReason).font(.subheadline).foregroundStyle(.secondary)
@@ -52,14 +70,14 @@ struct DiscoverView: View {
             }
         } detail: {
             Map(position: $camera, selection: $selectedPlaceID) {
-                ForEach(places, id: \.id) { place in
+                ForEach(rankedPlaces, id: \.id) { place in
                     Marker(place.name, coordinate: CLLocationCoordinate2D(latitude: place.coordinate.latitude, longitude: place.coordinate.longitude))
                         .tag(place.id)
                 }
             }
             .mapStyle(.standard)
             .overlay(alignment: .bottom) {
-                if let selectedPlace = places.first(where: { $0.id == selectedPlaceID }) {
+                if let selectedPlace = rankedPlaces.first(where: { $0.id == selectedPlaceID }) {
                     PlaceCard(place: selectedPlace)
                         .padding()
                 }
