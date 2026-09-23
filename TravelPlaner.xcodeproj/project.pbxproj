@@ -386,6 +386,7 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				CODE_SIGN_ENTITLEMENTS = TravelPlaner/TravelPlaner.entitlements;
+				CLOUDKIT_CONTAINER_ENVIRONMENT = Development;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "TravelPlaner uses your location only when you ask to discover worthwhile places nearby or verify a visit.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -429,6 +430,7 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				CODE_SIGN_ENTITLEMENTS = TravelPlaner/TravelPlaner.entitlements;
+				CLOUDKIT_CONTAINER_ENVIRONMENT = Production;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "TravelPlaner uses your location only when you ask to discover worthwhile places nearby or verify a visit.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;

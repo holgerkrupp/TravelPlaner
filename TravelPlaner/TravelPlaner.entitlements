@@ -7,7 +7,7 @@
 		<string>iCloud.de.holgerkrupp.travelplaner</string>
 	</array>
 	<key>com.apple.developer.icloud-container-environment</key>
-	<string>Development</string>
+	<string>$(CLOUDKIT_CONTAINER_ENVIRONMENT)</string>
 	<key>com.apple.developer.icloud-services</key>
 	<array>
 		<string>CloudKit</string>
