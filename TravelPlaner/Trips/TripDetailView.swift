@@ -13,6 +13,9 @@ struct TripDetailView: View {
     @State private var detours: [DetourCandidate] = []
     @State private var isDiscovering = false
     @State private var detourMessage: String?
+    @State private var companionEnabled = false
+    private let companion = TravelCompanion()
+    private let notifier = LocalHintNotifier()
 
     var body: some View {
         List {
@@ -62,6 +65,15 @@ struct TripDetailView: View {
                 if let searchError { Text(searchError).foregroundStyle(.red).font(.caption) }
             }
             if trip.stops.count >= 2 {
+                Section("Travel companion") {
+                    Toggle("Nearby worthwhile hints", isOn: $companionEnabled)
+                        .onChange(of: companionEnabled) { _, enabled in
+                            guard enabled else { return }
+                            Task { _ = try? await notifier.requestAuthorization() }
+                        }
+                    Text("Notifications are opt-in, throttled, and limited to exceptional discoveries. TravelPlaner does not start continuous tracking here.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
                 Section("Worth a detour") {
                     Button {
                         Task { await discoverDetours() }
@@ -141,6 +153,10 @@ struct TripDetailView: View {
         do {
             detours = try await coordinator.discover(for: trip.value)
             if detours.isEmpty { detourMessage = "No worthwhile discoveries were found in this corridor." }
+            if companionEnabled, let top = detours.first,
+               let hint = await companion.eligibleHint(for: top.place, score: top.score) {
+                try? await notifier.schedule(hint)
+            }
         } catch {
             detourMessage = "Route discovery is unavailable right now; cached trip data remains available."
         }
