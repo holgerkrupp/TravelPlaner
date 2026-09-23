@@ -126,8 +126,26 @@ enum TravelPlanerSchema {
 
     static func container(inMemory: Bool = false) throws -> ModelContainer {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: inMemory)
-        return try ModelContainer(for: Schema(models), configurations: configuration)
+        return try ModelContainer(for: Schema(versionedSchema: TravelPlanerSchemaV1.self), migrationPlan: TravelPlanerMigrationPlan.self, configurations: [configuration])
     }
+}
+
+enum TravelPlanerMigrationPlan: SchemaMigrationPlan {
+    nonisolated static let schemas: [VersionedSchema.Type] = [TravelPlanerSchemaV1.self]
+    nonisolated static let stages: [MigrationStage] = []
+}
+
+enum TravelPlanerSchemaV1: VersionedSchema {
+    nonisolated static let versionIdentifier = Schema.Version(1, 0, 0)
+    nonisolated static let models: [any PersistentModel.Type] = [
+        PersistedTrip.self,
+        PersistedInterestSelection.self,
+        PersistedVisitEligibility.self,
+        PersistedPlaceSnapshot.self,
+        PersistedVoteAggregateSnapshot.self,
+        PersistedSavedPlace.self,
+        PersistedSuggestion.self
+    ]
 }
 
 @MainActor

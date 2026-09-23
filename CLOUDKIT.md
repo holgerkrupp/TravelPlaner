@@ -23,3 +23,5 @@ The app remains usable without an iCloud account: CloudKit failures leave locall
 ## Local cache policy
 
 SwiftData place snapshots are retained for 30 days, refreshed when the same context is used, and evicted before reads/writes once older than that window. Cached vote aggregates are replaced by newer snapshots and remain timestamped so the UI can distinguish a locally restored value from a fresh CloudKit result. No continuous location history is cached.
+
+The local model container is backed by `TravelPlanerSchemaV1` and `TravelPlanerMigrationPlan`; future schema changes must add a new version and explicit migration stage rather than silently changing stored fields.
