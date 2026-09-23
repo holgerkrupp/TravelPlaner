@@ -6,6 +6,14 @@ struct DiscoverView: View {
     @State private var selectedPlaceID: UUID?
     @State private var camera: MapCameraPosition = .automatic
     @State private var showingSuggestion = false
+    @State private var isLocating = false
+    @State private var locationMessage: String?
+    private let locationService = CoreLocationService()
+    private let discoveryService = DiscoveryPipeline(
+        cloudKit: PublicCloudKitService(),
+        adapters: [WikidataGeoSearchAdapter(), OpenStreetMapOverpassAdapter()],
+        evaluator: CoverageEvaluator(policy: CoveragePolicy())
+    )
 
     var body: some View {
         NavigationSplitView {
@@ -24,6 +32,12 @@ struct DiscoverView: View {
             .navigationTitle("Discover")
             .toolbar {
                 Button { showingSuggestion = true } label: { Label("Suggest a place", systemImage: "plus.bubble") }
+                Button {
+                    Task { await centerOnCurrentLocation() }
+                } label: {
+                    Label(isLocating ? "Locating…" : "Near me", systemImage: "location")
+                }
+                .disabled(isLocating)
             }
             .sheet(isPresented: $showingSuggestion) {
                 SuggestionFormView(coordinator: SuggestionCoordinator(cloud: CloudKitSuggestionService()))
@@ -41,8 +55,30 @@ struct DiscoverView: View {
                     PlaceCard(place: selectedPlace)
                         .padding()
                 }
+                if let locationMessage {
+                    Text(locationMessage)
+                        .font(.caption)
+                        .padding(8)
+                        .background(.regularMaterial, in: Capsule())
+                        .padding(.bottom, 8)
+                }
             }
             .navigationTitle("Map")
+        }
+    }
+
+    @MainActor
+    private func centerOnCurrentLocation() async {
+        isLocating = true
+        locationMessage = nil
+        defer { isLocating = false }
+        do {
+            let location = try await locationService.currentLocation()
+            camera = .region(MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 10_000, longitudinalMeters: 10_000))
+            let discovered = try await discoveryService.discover(for: DiscoveryRequest(center: location.coordinate, radius: 10_000))
+            if !discovered.isEmpty { places = discovered }
+        } catch {
+            locationMessage = "Location is unavailable. You can still browse cached discoveries."
         }
     }
 }

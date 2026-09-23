@@ -9,7 +9,7 @@ struct AppDependencies: Sendable {
 
     init(
         cloudKit: any CloudKitService = PublicCloudKitService(),
-        location: any LocationService = UnavailableLocationService(),
+        location: any LocationService = CoreLocationService(),
         route: any RouteService = MapKitRouteService(),
         discovery: any POIDiscoveryService = DiscoveryPipeline(
             cloudKit: PublicCloudKitService(),
