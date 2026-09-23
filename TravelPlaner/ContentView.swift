@@ -11,6 +11,7 @@ struct ContentView: View {
         TabView {
             tripsView.tabItem { Label("Trips", systemImage: "airplane") }
             DiscoverView().tabItem { Label("Discover", systemImage: "map") }
+            SavedPlacesView().tabItem { Label("Saved", systemImage: "bookmark") }
             InterestsView().tabItem { Label("Interests", systemImage: "slider.horizontal.3") }
         }
     }
