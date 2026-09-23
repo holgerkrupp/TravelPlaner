@@ -13,18 +13,36 @@ actor TravelCompanion {
     private var lastHintAt: Date?
     private var hintedPlaceIDs: Set<UUID> = []
     private let minimumInterval: TimeInterval
+    private let maximumHintsPerDay: Int
+    private var hintDay: Date?
+    private var hintsToday = 0
 
-    init(minimumInterval: TimeInterval = 60 * 30) { self.minimumInterval = minimumInterval }
+    init(minimumInterval: TimeInterval = 60 * 30, maximumHintsPerDay: Int = 3) {
+        self.minimumInterval = minimumInterval
+        self.maximumHintsPerDay = max(1, maximumHintsPerDay)
+    }
 
     func eligibleHint(for place: Place, score: DiscoveryScore, now: Date = .now) -> TravelHint? {
-        guard score.total >= 0.65, !hintedPlaceIDs.contains(place.id),
+        let day = Calendar.current.startOfDay(for: now)
+        if hintDay != day {
+            hintDay = day
+            hintsToday = 0
+        }
+        guard hintsToday < maximumHintsPerDay,
+              score.total >= 0.65, !hintedPlaceIDs.contains(place.id),
               lastHintAt.map({ now.timeIntervalSince($0) >= minimumInterval }) ?? true else { return nil }
         lastHintAt = now
         hintedPlaceIDs.insert(place.id)
+        hintsToday += 1
         return TravelHint(placeID: place.id, title: "Worth a small detour", body: "\(place.name) — \(place.editorialReason)", score: score.total)
     }
 
-    func resetForNewTrip() { lastHintAt = nil; hintedPlaceIDs.removeAll() }
+    func resetForNewTrip() {
+        lastHintAt = nil
+        hintedPlaceIDs.removeAll()
+        hintDay = nil
+        hintsToday = 0
+    }
 }
 
 struct LocalHintNotifier: Sendable {
