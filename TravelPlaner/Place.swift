@@ -38,13 +38,17 @@ nonisolated struct PlaceSourceReference: Codable, Equatable, Hashable, Sendable 
     var sourceURL: URL?
     var license: String?
     var attribution: String?
+    var sourceUpdatedAt: Date?
+    var discoveryVersion: String?
 
     nonisolated init(
         source: PlaceSource,
         externalID: String,
         sourceURL: URL? = nil,
         license: String? = nil,
-        attribution: String? = nil
+        attribution: String? = nil,
+        sourceUpdatedAt: Date? = nil,
+        discoveryVersion: String? = nil
     ) throws {
         let normalizedID = externalID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedID.isEmpty else { throw ValidationError.emptyExternalID }
@@ -53,6 +57,8 @@ nonisolated struct PlaceSourceReference: Codable, Equatable, Hashable, Sendable 
         self.sourceURL = sourceURL
         self.license = license
         self.attribution = attribution
+        self.sourceUpdatedAt = sourceUpdatedAt
+        self.discoveryVersion = discoveryVersion
     }
 
     /// Suitable for deterministic local deduplication and CloudKit record names.

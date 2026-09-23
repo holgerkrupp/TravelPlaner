@@ -5,6 +5,7 @@ TravelPlaner uses the public database of `iCloud.de.holgerkrupp.travelplaner`.
 ## Record types
 
 - `Place`: canonical source-backed discoveries. The record name is derived from the first stable source key (`source:externalID`), so independent clients converge on one record.
+  Source freshness (`sourceUpdatedAt`) and the producer's `discoveryVersion` travel with each source reference for local revalidation and migration.
 - `PlaceVote`: one record per account/place. The record name is SHA-256 of the account key and Place UUID. Only coarse verification metadata is stored.
 - `PlaceSuggestion`: untrusted user proposals. These are never read as canonical Places and require developer moderation.
 

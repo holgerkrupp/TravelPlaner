@@ -29,6 +29,8 @@ struct CloudKitPlaceRecordMapper: Sendable {
         record["sourceURL"] = source.sourceURL?.absoluteString as NSString?
         record["license"] = source.license as NSString?
         record["attribution"] = source.attribution as NSString?
+        record["sourceUpdatedAt"] = source.sourceUpdatedAt as NSDate?
+        record["discoveryVersion"] = source.discoveryVersion as NSString?
         record["interests"] = place.interests.map(\.rawValue) as NSArray
         record["baseNotability"] = place.baseNotability as NSNumber
         record["estimatedVisitMinutes"] = place.estimatedVisitDurationMinutes as NSNumber?
@@ -54,7 +56,9 @@ struct CloudKitPlaceRecordMapper: Sendable {
             externalID: externalID,
             sourceURL: (record["sourceURL"] as? String).flatMap(URL.init(string:)),
             license: record["license"] as? String,
-            attribution: record["attribution"] as? String
+            attribution: record["attribution"] as? String,
+            sourceUpdatedAt: record["sourceUpdatedAt"] as? Date,
+            discoveryVersion: record["discoveryVersion"] as? String
         )
         let id = (record["stableID"] as? String).flatMap(UUID.init(uuidString:)) ?? UUID()
         let aliases = record["alternateNames"] as? [String] ?? []

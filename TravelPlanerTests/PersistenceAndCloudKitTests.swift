@@ -37,7 +37,9 @@ final class PersistenceAndCloudKitTests: XCTestCase {
             externalID: "Q12345",
             sourceURL: URL(string: "https://www.wikidata.org/entity/Q12345"),
             license: "CC0",
-            attribution: "Wikidata"
+            attribution: "Wikidata",
+            sourceUpdatedAt: Date(timeIntervalSince1970: 1234),
+            discoveryVersion: "fixture-v2"
         )
         let place = try Place(
             id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
@@ -57,6 +59,8 @@ final class PersistenceAndCloudKitTests: XCTestCase {
         XCTAssertEqual(restored.id, place.id)
         XCTAssertEqual(restored.sources.first?.canonicalKey, "wikidata:Q12345")
         XCTAssertEqual(restored.sources.first?.license, "CC0")
+        XCTAssertEqual(restored.sources.first?.sourceUpdatedAt, Date(timeIntervalSince1970: 1234))
+        XCTAssertEqual(restored.sources.first?.discoveryVersion, "fixture-v2")
         XCTAssertEqual(restored.coordinate.latitude, place.coordinate.latitude, accuracy: 0.000001)
     }
 
