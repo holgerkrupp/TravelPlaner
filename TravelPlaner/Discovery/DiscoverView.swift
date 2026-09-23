@@ -128,7 +128,7 @@ struct DiscoverView: View {
                 let edge = CLLocationCoordinate2D(latitude: center.latitude + region.span.latitudeDelta / 2, longitude: center.longitude)
                 let radius = CLLocation(latitude: center.latitude, longitude: center.longitude)
                     .distance(from: CLLocation(latitude: edge.latitude, longitude: edge.longitude))
-                let request = DiscoveryRequest(center: center, radius: min(max(radius, 1_000), 100_000))
+                let request = DiscoveryRequest(center: center, radius: min(max(radius, 1_000), 50_000))
                 let discovered = try await discoveryCoordinator.discover(for: request)
                 guard !Task.isCancelled, !discovered.isEmpty else { return }
                 places = discovered
