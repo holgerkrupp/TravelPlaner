@@ -57,6 +57,8 @@ private struct PlaceCard: View {
             Text("Source: \(place.sources.first?.source.rawValue.capitalized ?? "Unknown")")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            NavigationLink("View details", destination: PlaceDetailView(place: place))
+                .font(.subheadline.weight(.semibold))
         }
         .padding()
         .frame(maxWidth: 420, alignment: .leading)
