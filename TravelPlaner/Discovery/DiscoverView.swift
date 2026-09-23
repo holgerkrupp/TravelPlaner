@@ -9,6 +9,7 @@ struct DiscoverView: View {
     @State private var isLocating = false
     @State private var locationMessage: String?
     private let locationService = CoreLocationService()
+    private let cache = OfflinePlaceCache()
     private let discoveryService = DiscoveryPipeline(
         cloudKit: PublicCloudKitService(),
         adapters: [WikidataGeoSearchAdapter(), OpenStreetMapOverpassAdapter()],
@@ -76,9 +77,20 @@ struct DiscoverView: View {
             let location = try await locationService.currentLocation()
             camera = .region(MKCoordinateRegion(center: location.coordinate, latitudinalMeters: 10_000, longitudinalMeters: 10_000))
             let discovered = try await discoveryService.discover(for: DiscoveryRequest(center: location.coordinate, radius: 10_000))
-            if !discovered.isEmpty { places = discovered }
+            if !discovered.isEmpty {
+                places = discovered
+                await cache.store(discovered, context: "nearby")
+            } else if let cached = await cache.load(context: "nearby") {
+                places = cached.places
+                locationMessage = "Showing cached discoveries from \(cached.cachedAt.formatted(date: .abbreviated, time: .shortened))."
+            }
         } catch {
-            locationMessage = "Location is unavailable. You can still browse cached discoveries."
+            if let cached = await cache.load(context: "nearby") {
+                places = cached.places
+                locationMessage = "Showing cached discoveries from \(cached.cachedAt.formatted(date: .abbreviated, time: .shortened))."
+            } else {
+                locationMessage = "Location or network is unavailable. You can still browse the bundled discoveries."
+            }
         }
     }
 }
