@@ -7,11 +7,13 @@ enum CloudKitConfiguration {
 
 protocol CloudKitService: Sendable {
     func fetchPlaces(in region: CoverageRegion) async throws -> [Place]
+    func fetchPlace(stableID: UUID) async throws -> Place?
     func publish(_ places: [Place]) async throws
 }
 
 struct UnavailableCloudKitService: CloudKitService {
     func fetchPlaces(in region: CoverageRegion) async throws -> [Place] { [] }
+    func fetchPlace(stableID: UUID) async throws -> Place? { nil }
     func publish(_ places: [Place]) async throws { }
 }
 
@@ -45,6 +47,13 @@ struct PublicCloudKitService: CloudKitService {
             let location = CLLocation(latitude: place.coordinate.latitude, longitude: place.coordinate.longitude)
             return center.distance(from: location) <= region.radius ? place : nil
         }
+    }
+
+    func fetchPlace(stableID: UUID) async throws -> Place? {
+        let database = injectedDatabase ?? CKContainer(identifier: CloudKitConfiguration.containerIdentifier).publicCloudDatabase
+        let query = CKQuery(recordType: CloudKitPlaceRecordMapper.recordType, predicate: NSPredicate(format: "stableID == %@", stableID.uuidString))
+        let page = try await database.records(matching: query, resultsLimit: 1)
+        return page.matchResults.compactMap { try? CloudKitPlaceRecordMapper.makePlace(from: $0.1.get()) }.first
     }
 
     func publish(_ places: [Place]) async throws {

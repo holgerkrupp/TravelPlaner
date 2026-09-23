@@ -4,6 +4,7 @@ import XCTest
 
 private struct EmptyCloudService: CloudKitService {
     func fetchPlaces(in region: CoverageRegion) async throws -> [Place] { [] }
+    func fetchPlace(stableID: UUID) async throws -> Place? { nil }
     func publish(_ places: [Place]) async throws { }
 }
 

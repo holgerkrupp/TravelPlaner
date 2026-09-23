@@ -4,6 +4,13 @@ import SwiftData
 import XCTest
 @testable import TravelPlaner
 
+private struct SinglePlaceCloud: CloudKitService {
+    let place: Place
+    func fetchPlaces(in region: CoverageRegion) async throws -> [Place] { [place] }
+    func fetchPlace(stableID: UUID) async throws -> Place? { place.id == stableID ? place : nil }
+    func publish(_ places: [Place]) async throws { }
+}
+
 @MainActor
 final class PersistenceAndCloudKitTests: XCTestCase {
     func testTripStoreRoundTripsStopsAndUpdates() throws {
@@ -108,5 +115,16 @@ final class PersistenceAndCloudKitTests: XCTestCase {
 
         XCTAssertEqual(first, changedValueUsesSameRecord)
         XCTAssertNotEqual(first, otherAccount)
+    }
+
+    func testPlaceRepositoryFetchesByStableTravelPlanerID() async throws {
+        let source = try PlaceSourceReference(source: .wikidata, externalID: "Q-direct")
+        let place = try Place(id: UUID(), name: "Direct lookup", coordinate: try GeoCoordinate(latitude: 48, longitude: 11), category: .unusual, editorialReason: "Fixture.", sources: [source])
+        let repository = PlaceRepository(service: SinglePlaceCloud(place: place))
+        let region = CoverageRegion(center: CLLocationCoordinate2D(latitude: 48, longitude: 11), radius: 1000)
+
+        _ = try await repository.places(in: region)
+        let found = try await repository.place(id: place.id)
+        XCTAssertEqual(found?.id, place.id)
     }
 }

@@ -96,5 +96,10 @@ actor PlaceRepository {
         return cache[key] ?? []
     }
 
+    func place(id: UUID) async throws -> Place? {
+        if let cached = cache.values.lazy.compactMap({ $0.first(where: { $0.id == id }) }).first { return cached }
+        return try await service.fetchPlace(stableID: id)
+    }
+
     func invalidate() { cache.removeAll() }
 }
