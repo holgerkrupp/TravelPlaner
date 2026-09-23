@@ -16,6 +16,7 @@ import UIKit
             ContentView()
                 .environmentObject(appState)
                 .task {
+                    _ = await appState.offlineWriteQueue.flush()
                     for await _ in NotificationCenter.default.notifications(named: UIApplication.didBecomeActiveNotification) {
                         _ = await appState.offlineWriteQueue.flush()
                     }
