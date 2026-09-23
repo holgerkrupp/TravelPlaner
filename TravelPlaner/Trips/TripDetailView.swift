@@ -89,6 +89,8 @@ struct TripDetailView: View {
                                 Text("Approx. \(route.expectedTravelTime / 60, specifier: "%.0f") min of route segments")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
+                            Button("Add to trip") { addDetour(detour) }
+                                .buttonStyle(.bordered)
                         }
                     }
                     if let detourMessage { Text(detourMessage).font(.caption).foregroundStyle(.secondary) }
@@ -126,6 +128,18 @@ struct TripDetailView: View {
         trip.stops = trip.stops.enumerated().map { index, stop in
             TripStop(id: stop.id, name: stop.name, coordinate: stop.coordinate, order: index)
         }
+        try? modelContext.save()
+    }
+
+    private func addDetour(_ detour: DetourCandidate) {
+        guard !trip.stops.contains(where: { $0.coordinate == detour.place.coordinate }) else { return }
+        let stop = TripStop(
+            name: detour.place.name,
+            coordinate: detour.place.coordinate,
+            order: trip.stops.count
+        )
+        trip.stops.append(stop)
+        trip.destinations.append(stop.name)
         try? modelContext.save()
     }
 
