@@ -127,4 +127,18 @@ final class PersistenceAndCloudKitTests: XCTestCase {
         let found = try await repository.place(id: place.id)
         XCTAssertEqual(found?.id, place.id)
     }
+
+    func testSavedPlaceCanBeToggledAndRestored() throws {
+        let container = try TravelPlanerSchema.container(inMemory: true)
+        let context = ModelContext(container)
+        let source = try PlaceSourceReference(source: .wikidata, externalID: "Q-saved")
+        let place = try Place(name: "Saved fixture", coordinate: try GeoCoordinate(latitude: 48, longitude: 11), category: .unusual, editorialReason: "Fixture.", sources: [source])
+        let store = SwiftDataSavedPlaceStore(context: context)
+
+        XCTAssertTrue(store.toggle(place))
+        XCTAssertTrue(store.contains(place.id))
+        XCTAssertEqual(store.all().first?.id, place.id)
+        XCTAssertFalse(store.toggle(place))
+        XCTAssertFalse(store.contains(place.id))
+    }
 }

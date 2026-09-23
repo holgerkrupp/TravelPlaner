@@ -22,6 +22,7 @@ struct PlaceDetailView: View {
     @State private var isVoting = false
     @State private var imageAsset: PlaceImageAsset?
     @State private var appleEnrichment: ApplePlaceEnrichment?
+    @State private var isSaved = false
 
     var body: some View {
         List {
@@ -88,7 +89,16 @@ struct PlaceDetailView: View {
             }
         }
         .navigationTitle(place.name)
+        .toolbar {
+            Button {
+                isSaved = SwiftDataSavedPlaceStore(context: modelContext).toggle(place)
+            } label: {
+                Label(isSaved ? "Remove saved place" : "Save place", systemImage: isSaved ? "bookmark.fill" : "bookmark")
+            }
+            .accessibilityLabel(isSaved ? "Remove (place.name) from saved places" : "Save (place.name)")
+        }
         .task {
+            isSaved = SwiftDataSavedPlaceStore(context: modelContext).contains(place.id)
             imageAsset = try? await WikimediaCommonsImageService().image(for: place)
             let aggregateStore = SwiftDataVoteAggregateStore(context: modelContext)
             aggregate = aggregateStore.load(for: place.id)?.aggregate

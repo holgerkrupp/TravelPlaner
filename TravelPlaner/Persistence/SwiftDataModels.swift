@@ -83,13 +83,28 @@ import Combine
     var aggregate: VoteAggregate? { try? JSONDecoder().decode(VoteAggregate.self, from: aggregateData) }
 }
 
+@Model final class PersistedSavedPlace {
+    @Attribute(.unique) var placeID: UUID
+    var placeData: Data
+    var savedAt: Date
+
+    init(place: Place, savedAt: Date = .now) {
+        placeID = place.id
+        placeData = (try? JSONEncoder().encode(place)) ?? Data()
+        self.savedAt = savedAt
+    }
+
+    var place: Place? { try? JSONDecoder().decode(Place.self, from: placeData) }
+}
+
 enum TravelPlanerSchema {
     static let models: [any PersistentModel.Type] = [
         PersistedTrip.self,
         PersistedInterestSelection.self,
         PersistedVisitEligibility.self,
         PersistedPlaceSnapshot.self,
-        PersistedVoteAggregateSnapshot.self
+        PersistedVoteAggregateSnapshot.self,
+        PersistedSavedPlace.self
     ]
 
     static func container(inMemory: Bool = false) throws -> ModelContainer {
@@ -159,6 +174,32 @@ final class SwiftDataVoteAggregateStore {
         guard let stored = (try? context.fetch(FetchDescriptor<PersistedVoteAggregateSnapshot>()))?.first(where: { $0.placeID == placeID }),
               let aggregate = stored.aggregate else { return nil }
         return CachedVoteAggregate(aggregate: aggregate, updatedAt: stored.updatedAt)
+    }
+}
+
+@MainActor
+final class SwiftDataSavedPlaceStore {
+    private let context: ModelContext
+
+    init(context: ModelContext) { self.context = context }
+
+    func contains(_ placeID: UUID) -> Bool {
+        (try? context.fetch(FetchDescriptor<PersistedSavedPlace>()))?.contains { $0.placeID == placeID } ?? false
+    }
+
+    func toggle(_ place: Place, now: Date = .now) -> Bool {
+        if let saved = (try? context.fetch(FetchDescriptor<PersistedSavedPlace>()))?.first(where: { $0.placeID == place.id }) {
+            context.delete(saved)
+            try? context.save()
+            return false
+        }
+        context.insert(PersistedSavedPlace(place: place, savedAt: now))
+        try? context.save()
+        return true
+    }
+
+    func all() -> [Place] {
+        (try? context.fetch(FetchDescriptor<PersistedSavedPlace>()))?.compactMap(\.place) ?? []
     }
 }
 
