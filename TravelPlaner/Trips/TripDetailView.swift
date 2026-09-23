@@ -8,7 +8,7 @@ struct TripDetailView: View {
     @State private var destinationQuery = ""
     @State private var isSearching = false
     @State private var searchError: String?
-    @State private var route: MKRoute?
+    @State private var routes: [MKRoute] = []
     @State private var camera: MapCameraPosition = .automatic
     @State private var detours: [DetourCandidate] = []
     @State private var isDiscovering = false
@@ -25,13 +25,17 @@ struct TripDetailView: View {
                         ForEach(trip.stops) { stop in
                             Marker(stop.name, coordinate: CLLocationCoordinate2D(latitude: stop.coordinate.latitude, longitude: stop.coordinate.longitude))
                         }
-                        if let route { MapPolyline(route.polyline).stroke(.blue, lineWidth: 5) }
+                        ForEach(Array(routes.enumerated()), id: \.offset) { _, route in
+                            MapPolyline(route.polyline).stroke(.blue, lineWidth: 5)
+                        }
                     }
                     .frame(minHeight: 220)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .task(id: trip.stops.map(\.id)) { await calculateRoute() }
-                    if let route {
-                        Text("\(route.distance / 1000, specifier: "%.1f") km · \(route.expectedTravelTime / 60, specifier: "%.0f") min")
+                    if !routes.isEmpty {
+                        let distance = routes.reduce(0) { $0 + $1.distance }
+                        let travelTime = routes.reduce(0) { $0 + $1.expectedTravelTime }
+                        Text("\(distance / 1000, specifier: "%.1f") km · \(travelTime / 60, specifier: "%.0f") min")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
@@ -144,14 +148,21 @@ struct TripDetailView: View {
     }
 
     private func calculateRoute() async {
-        guard trip.stops.count >= 2 else { route = nil; return }
-        let request = MKDirections.Request()
-        request.source = MKMapItem(location: CLLocation(latitude: trip.stops[0].coordinate.latitude, longitude: trip.stops[0].coordinate.longitude), address: nil)
-        let last = trip.stops[trip.stops.count - 1]
-        request.destination = MKMapItem(location: CLLocation(latitude: last.coordinate.latitude, longitude: last.coordinate.longitude), address: nil)
-        request.transportType = .automobile
-        do { route = try await MKDirections(request: request).calculate().routes.first }
-        catch { route = nil }
+        guard trip.stops.count >= 2 else { routes = []; return }
+        do {
+            var calculated: [MKRoute] = []
+            for pair in zip(trip.stops, trip.stops.dropFirst()) {
+                let request = MKDirections.Request()
+                request.source = MKMapItem(location: CLLocation(latitude: pair.0.coordinate.latitude, longitude: pair.0.coordinate.longitude), address: nil)
+                request.destination = MKMapItem(location: CLLocation(latitude: pair.1.coordinate.latitude, longitude: pair.1.coordinate.longitude), address: nil)
+                request.transportType = .automobile
+                guard let segment = try await MKDirections(request: request).calculate().routes.first else { throw AppServiceError.routeUnavailable }
+                calculated.append(segment)
+            }
+            routes = calculated
+        } catch {
+            routes = []
+        }
     }
 
     @MainActor
