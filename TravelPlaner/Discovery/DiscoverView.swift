@@ -5,6 +5,7 @@ struct DiscoverView: View {
     @State private var places = SamplePlaces.all
     @State private var selectedPlaceID: UUID?
     @State private var camera: MapCameraPosition = .automatic
+    @State private var showingSuggestion = false
 
     var body: some View {
         NavigationSplitView {
@@ -21,6 +22,12 @@ struct DiscoverView: View {
                 .accessibilityLabel("\(place.name), \(place.editorialReason)")
             }
             .navigationTitle("Discover")
+            .toolbar {
+                Button { showingSuggestion = true } label: { Label("Suggest a place", systemImage: "plus.bubble") }
+            }
+            .sheet(isPresented: $showingSuggestion) {
+                SuggestionFormView(coordinator: SuggestionCoordinator(cloud: CloudKitSuggestionService()))
+            }
         } detail: {
             Map(position: $camera, selection: $selectedPlaceID) {
                 ForEach(places, id: \.id) { place in
