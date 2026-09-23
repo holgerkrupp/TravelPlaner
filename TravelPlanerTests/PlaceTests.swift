@@ -1,6 +1,7 @@
 import XCTest
 @testable import TravelPlaner
 
+@MainActor
 final class PlaceTests: XCTestCase {
     private let coordinate = try! GeoCoordinate(latitude: 25.6872, longitude: -80.3046)
     private let source = try! PlaceSourceReference(

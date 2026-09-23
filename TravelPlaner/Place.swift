@@ -1,11 +1,11 @@
 import Foundation
 
 /// A coordinate stored by the domain without coupling it to MapKit or Core Location.
-struct GeoCoordinate: Codable, Equatable, Hashable, Sendable {
+nonisolated struct GeoCoordinate: Codable, Equatable, Hashable, Sendable {
     let latitude: Double
     let longitude: Double
 
-    init(latitude: Double, longitude: Double) throws {
+    nonisolated init(latitude: Double, longitude: Double) throws {
         guard (-90...90).contains(latitude), (-180...180).contains(longitude),
               latitude.isFinite, longitude.isFinite else {
             throw ValidationError.invalidCoordinate
@@ -20,7 +20,7 @@ struct GeoCoordinate: Codable, Equatable, Hashable, Sendable {
 }
 
 /// The source families TravelPlaner is allowed to retain as provenance.
-enum PlaceSource: String, Codable, CaseIterable, Sendable {
+nonisolated enum PlaceSource: String, Codable, CaseIterable, Sendable {
     case wikidata
     case openStreetMap
     case wikimediaCommons
@@ -32,14 +32,14 @@ enum PlaceSource: String, Codable, CaseIterable, Sendable {
 }
 
 /// A stable source identity. Display names are deliberately not identity.
-struct PlaceSourceReference: Codable, Equatable, Hashable, Sendable {
+nonisolated struct PlaceSourceReference: Codable, Equatable, Hashable, Sendable {
     let source: PlaceSource
     let externalID: String
     var sourceURL: URL?
     var license: String?
     var attribution: String?
 
-    init(
+    nonisolated init(
         source: PlaceSource,
         externalID: String,
         sourceURL: URL? = nil,
@@ -63,14 +63,14 @@ struct PlaceSourceReference: Codable, Equatable, Hashable, Sendable {
     }
 }
 
-enum PlaceKind: String, Codable, CaseIterable, Sendable {
+nonisolated enum PlaceKind: String, Codable, CaseIterable, Sendable {
     case detourStop
     case dayTrip
     case majorDestination
     case remoteDestination
 }
 
-enum PlaceCategory: String, Codable, CaseIterable, Sendable {
+nonisolated enum PlaceCategory: String, Codable, CaseIterable, Sendable {
     case nature
     case park
     case geology
@@ -87,14 +87,14 @@ enum PlaceCategory: String, Codable, CaseIterable, Sendable {
     case other
 }
 
-enum PlaceInterest: String, Codable, CaseIterable, Sendable {
+nonisolated enum PlaceInterest: String, Codable, CaseIterable, Sendable {
     case nature, geology, hiking, architecture, engineering, aviation, railways
     case maritime, history, archaeology, art, science, technology, food
     case unusual, familyFriendly
 }
 
 /// Canonical, source-backed discovery data. User suggestions are intentionally a different type.
-struct Place: Codable, Identifiable, Equatable, Sendable {
+nonisolated struct Place: Codable, Identifiable, Equatable, Sendable {
     let id: UUID
     var name: String
     var alternateNames: [String]
@@ -108,7 +108,7 @@ struct Place: Codable, Identifiable, Equatable, Sendable {
     var estimatedVisitDurationMinutes: Int?
     var baseNotability: Double
 
-    init(
+    nonisolated init(
         id: UUID = UUID(),
         name: String,
         alternateNames: [String] = [],
