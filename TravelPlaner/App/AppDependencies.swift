@@ -8,10 +8,10 @@ struct AppDependencies: Sendable {
     let persistence: any LocalPersistenceService
 
     init(
-        cloudKit: any CloudKitService = UnavailableCloudKitService(),
+        cloudKit: any CloudKitService = PublicCloudKitService(),
         location: any LocationService = UnavailableLocationService(),
-        route: any RouteService = UnavailableRouteService(),
-        discovery: any POIDiscoveryService = EmptyPOIDiscoveryService(),
+        route: any RouteService = MapKitRouteService(),
+        discovery: any POIDiscoveryService = DiscoveryPipeline(cloudKit: PublicCloudKitService(), adapters: [], evaluator: CoverageEvaluator(policy: CoveragePolicy())),
         persistence: any LocalPersistenceService = InMemoryLocalPersistenceService()
     ) {
         self.cloudKit = cloudKit
