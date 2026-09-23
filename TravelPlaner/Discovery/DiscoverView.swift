@@ -1,8 +1,10 @@
 import MapKit
 import SwiftUI
+import SwiftData
 
 struct DiscoverView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.modelContext) private var modelContext
     @State private var places = SamplePlaces.all
     @State private var selectedPlaceID: UUID?
     @State private var camera: MapCameraPosition = .automatic
@@ -10,7 +12,6 @@ struct DiscoverView: View {
     @State private var isLocating = false
     @State private var locationMessage: String?
     private let locationService = CoreLocationService()
-    private let cache = OfflinePlaceCache()
     private let discoveryCoordinator: DiscoveryRequestCoordinator
 
     init() {
@@ -85,13 +86,13 @@ struct DiscoverView: View {
             let discovered = try await discoveryCoordinator.discover(for: DiscoveryRequest(center: location.coordinate, radius: 10_000))
             if !discovered.isEmpty {
                 places = discovered
-                await cache.store(discovered, context: "nearby")
-            } else if let cached = await cache.load(context: "nearby") {
+                SwiftDataPlaceSnapshotStore(context: modelContext).store(discovered, context: "nearby")
+            } else if let cached = SwiftDataPlaceSnapshotStore(context: modelContext).load(context: "nearby") {
                 places = cached.places
                 locationMessage = "Showing cached discoveries from \(cached.cachedAt.formatted(date: .abbreviated, time: .shortened))."
             }
         } catch {
-            if let cached = await cache.load(context: "nearby") {
+            if let cached = SwiftDataPlaceSnapshotStore(context: modelContext).load(context: "nearby") {
                 places = cached.places
                 locationMessage = "Showing cached discoveries from \(cached.cachedAt.formatted(date: .abbreviated, time: .shortened))."
             } else {

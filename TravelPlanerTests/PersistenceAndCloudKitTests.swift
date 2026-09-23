@@ -59,4 +59,17 @@ final class PersistenceAndCloudKitTests: XCTestCase {
         XCTAssertEqual(restored.sources.first?.license, "CC0")
         XCTAssertEqual(restored.coordinate.latitude, place.coordinate.latitude, accuracy: 0.000001)
     }
+
+    func testPlaceSnapshotSurvivesStoreReload() throws {
+        let container = try TravelPlanerSchema.container(inMemory: true)
+        let context = ModelContext(container)
+        let store = SwiftDataPlaceSnapshotStore(context: context)
+        let source = try PlaceSourceReference(source: .wikidata, externalID: "Q-cache")
+        let place = try Place(name: "Sequoia National Park", coordinate: try GeoCoordinate(latitude: 36.5, longitude: -118.5), category: .park, editorialReason: "Giant trees.", sources: [source])
+
+        store.store([place], context: "nearby")
+        let reloaded = SwiftDataPlaceSnapshotStore(context: ModelContext(container)).load(context: "nearby")
+
+        XCTAssertEqual(reloaded?.places, [place])
+    }
 }

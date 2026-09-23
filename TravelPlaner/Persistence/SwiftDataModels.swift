@@ -53,16 +53,56 @@ import Combine
     }
 }
 
+@Model final class PersistedPlaceSnapshot {
+    @Attribute(.unique) var cacheKey: String
+    var placesData: Data
+    var cachedAt: Date
+
+    init(places: [Place], context: String, cachedAt: Date = .now) {
+        cacheKey = context
+        placesData = (try? JSONEncoder().encode(places)) ?? Data()
+        self.cachedAt = cachedAt
+    }
+
+    var places: [Place] {
+        (try? JSONDecoder().decode([Place].self, from: placesData)) ?? []
+    }
+}
+
 enum TravelPlanerSchema {
     static let models: [any PersistentModel.Type] = [
         PersistedTrip.self,
         PersistedInterestSelection.self,
-        PersistedVisitEligibility.self
+        PersistedVisitEligibility.self,
+        PersistedPlaceSnapshot.self
     ]
 
     static func container(inMemory: Bool = false) throws -> ModelContainer {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: inMemory)
         return try ModelContainer(for: Schema(models), configurations: configuration)
+    }
+}
+
+@MainActor
+final class SwiftDataPlaceSnapshotStore {
+    private let context: ModelContext
+
+    init(context: ModelContext) { self.context = context }
+
+    func store(_ places: [Place], context key: String, now: Date = .now) {
+        let existing = (try? context.fetch(FetchDescriptor<PersistedPlaceSnapshot>()))?.first { $0.cacheKey == key }
+        if let existing {
+            existing.placesData = (try? JSONEncoder().encode(PlaceDeduplicator.unique(places))) ?? Data()
+            existing.cachedAt = now
+        } else {
+            context.insert(PersistedPlaceSnapshot(places: places, context: key, cachedAt: now))
+        }
+        try? context.save()
+    }
+
+    func load(context key: String) -> CachedPlaceSet? {
+        guard let stored = (try? context.fetch(FetchDescriptor<PersistedPlaceSnapshot>()))?.first(where: { $0.cacheKey == key }) else { return nil }
+        return CachedPlaceSet(places: stored.places, cachedAt: stored.cachedAt, context: key)
     }
 }
 
