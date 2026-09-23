@@ -2,6 +2,7 @@ import Foundation
 import CoreLocation
 import CloudKit
 import MapKit
+import SwiftData
 import SwiftUI
 
 struct PlaceImageAsset: Codable, Equatable, Identifiable, Sendable {
@@ -13,6 +14,7 @@ struct PlaceImageAsset: Codable, Equatable, Identifiable, Sendable {
 }
 
 struct PlaceDetailView: View {
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var appState: AppState
     let place: Place
     @State private var voteMessage: String?
@@ -88,6 +90,13 @@ struct PlaceDetailView: View {
         .navigationTitle(place.name)
         .task {
             imageAsset = try? await WikimediaCommonsImageService().image(for: place)
+            let aggregateStore = SwiftDataVoteAggregateStore(context: modelContext)
+            aggregate = aggregateStore.load(for: place.id)?.aggregate
+            if let cloud = try? await CloudKitVoteService.forCurrentUser() {
+                let fresh = await VoteCoordinator(cloud: cloud).aggregate(for: place.id)
+                aggregate = fresh
+                aggregateStore.store(fresh, for: place.id)
+            }
         }
     }
 
@@ -117,6 +126,7 @@ struct PlaceDetailView: View {
             let vote = PlaceVote(id: UUID(), placeID: place.id, value: value, verification: .currentProximity, coarseVisitMonth: Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: evidence.observedAt)), updatedAt: .now)
             try await VoteCoordinator(cloud: cloud, offlineQueue: appState.offlineWriteQueue).submit(vote, eligibility: VisitEligibility(isEligible: true, reason: "Verified proximity"))
             aggregate = await VoteCoordinator(cloud: cloud).aggregate(for: place.id)
+            SwiftDataVoteAggregateStore(context: modelContext).store(aggregate!, for: place.id)
             voteMessage = "Your vote was saved."
         } catch {
             voteMessage = "Voting is unavailable without an authenticated iCloud account."

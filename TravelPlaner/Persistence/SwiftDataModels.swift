@@ -69,12 +69,27 @@ import Combine
     }
 }
 
+@Model final class PersistedVoteAggregateSnapshot {
+    @Attribute(.unique) var placeID: UUID
+    var aggregateData: Data
+    var updatedAt: Date
+
+    init(placeID: UUID, aggregate: VoteAggregate, updatedAt: Date = .now) {
+        self.placeID = placeID
+        aggregateData = (try? JSONEncoder().encode(aggregate)) ?? Data()
+        self.updatedAt = updatedAt
+    }
+
+    var aggregate: VoteAggregate? { try? JSONDecoder().decode(VoteAggregate.self, from: aggregateData) }
+}
+
 enum TravelPlanerSchema {
     static let models: [any PersistentModel.Type] = [
         PersistedTrip.self,
         PersistedInterestSelection.self,
         PersistedVisitEligibility.self,
-        PersistedPlaceSnapshot.self
+        PersistedPlaceSnapshot.self,
+        PersistedVoteAggregateSnapshot.self
     ]
 
     static func container(inMemory: Bool = false) throws -> ModelContainer {
@@ -103,6 +118,35 @@ final class SwiftDataPlaceSnapshotStore {
     func load(context key: String) -> CachedPlaceSet? {
         guard let stored = (try? context.fetch(FetchDescriptor<PersistedPlaceSnapshot>()))?.first(where: { $0.cacheKey == key }) else { return nil }
         return CachedPlaceSet(places: stored.places, cachedAt: stored.cachedAt, context: key)
+    }
+}
+
+struct CachedVoteAggregate: Equatable, Sendable {
+    let aggregate: VoteAggregate
+    let updatedAt: Date
+}
+
+@MainActor
+final class SwiftDataVoteAggregateStore {
+    private let context: ModelContext
+
+    init(context: ModelContext) { self.context = context }
+
+    func store(_ aggregate: VoteAggregate, for placeID: UUID, now: Date = .now) {
+        let existing = (try? context.fetch(FetchDescriptor<PersistedVoteAggregateSnapshot>()))?.first { $0.placeID == placeID }
+        if let existing {
+            existing.aggregateData = (try? JSONEncoder().encode(aggregate)) ?? Data()
+            existing.updatedAt = now
+        } else {
+            context.insert(PersistedVoteAggregateSnapshot(placeID: placeID, aggregate: aggregate, updatedAt: now))
+        }
+        try? context.save()
+    }
+
+    func load(for placeID: UUID) -> CachedVoteAggregate? {
+        guard let stored = (try? context.fetch(FetchDescriptor<PersistedVoteAggregateSnapshot>()))?.first(where: { $0.placeID == placeID }),
+              let aggregate = stored.aggregate else { return nil }
+        return CachedVoteAggregate(aggregate: aggregate, updatedAt: stored.updatedAt)
     }
 }
 

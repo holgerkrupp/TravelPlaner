@@ -12,7 +12,7 @@ struct PlaceVote: Codable, Equatable, Identifiable, Sendable {
     var updatedAt: Date
 }
 
-struct VoteAggregate: Equatable, Sendable {
+nonisolated struct VoteAggregate: Codable, Equatable, Sendable {
     let positiveCount: Int
     let negativeCount: Int
     let confidenceScore: Double

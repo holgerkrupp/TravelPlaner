@@ -72,4 +72,14 @@ final class PersistenceAndCloudKitTests: XCTestCase {
 
         XCTAssertEqual(reloaded?.places, [place])
     }
+
+    func testVoteAggregateSnapshotSurvivesStoreReload() throws {
+        let container = try TravelPlanerSchema.container(inMemory: true)
+        let placeID = UUID()
+        let aggregate = VoteAggregate(positiveCount: 2, negativeCount: 1, confidenceScore: 0.6, isInformative: true)
+        SwiftDataVoteAggregateStore(context: ModelContext(container)).store(aggregate, for: placeID)
+
+        let reloaded = SwiftDataVoteAggregateStore(context: ModelContext(container)).load(for: placeID)
+        XCTAssertEqual(reloaded?.aggregate, aggregate)
+    }
 }
