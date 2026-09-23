@@ -27,7 +27,18 @@ struct PublicCloudKitService: CloudKitService {
 
     func fetchPlaces(in region: CoverageRegion) async throws -> [Place] {
         let database = injectedDatabase ?? CKContainer(identifier: CloudKitConfiguration.containerIdentifier).publicCloudDatabase
-        let query = CKQuery(recordType: CloudKitPlaceRecordMapper.recordType, predicate: NSPredicate(value: true))
+        let latitudeDelta = region.radius / 111_000
+        let longitudeScale = max(0.1, abs(cos(region.center.latitude * .pi / 180)))
+        let longitudeDelta = region.radius / (111_000 * longitudeScale)
+        let query = CKQuery(
+            recordType: CloudKitPlaceRecordMapper.recordType,
+            predicate: NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "latitude >= %@", NSNumber(value: region.center.latitude - latitudeDelta)),
+                NSPredicate(format: "latitude <= %@", NSNumber(value: region.center.latitude + latitudeDelta)),
+                NSPredicate(format: "longitude >= %@", NSNumber(value: region.center.longitude - longitudeDelta)),
+                NSPredicate(format: "longitude <= %@", NSNumber(value: region.center.longitude + longitudeDelta))
+            ])
+        )
         var records: [CKRecord] = []
         var cursor: CKQueryOperation.Cursor?
         repeat {
