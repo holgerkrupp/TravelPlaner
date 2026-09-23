@@ -23,6 +23,11 @@ struct CloudKitVoteService: VoteCloudService {
         self.userKey = userKey
     }
 
+    static func forCurrentUser(container: CKContainer = CKContainer(identifier: CloudKitConfiguration.containerIdentifier)) async throws -> Self {
+        let userRecord = try await container.userRecordID()
+        return Self(container: container, userKey: userRecord.recordName)
+    }
+
     func save(_ vote: PlaceVote) async throws {
         let record = CKRecord(recordType: "PlaceVote", recordID: recordID(for: vote.placeID))
         record["placeID"] = vote.placeID.uuidString as NSString

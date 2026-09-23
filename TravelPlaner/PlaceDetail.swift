@@ -1,4 +1,6 @@
 import Foundation
+import CoreLocation
+import CloudKit
 import SwiftUI
 
 struct PlaceImageAsset: Codable, Equatable, Identifiable, Sendable {
@@ -11,6 +13,9 @@ struct PlaceImageAsset: Codable, Equatable, Identifiable, Sendable {
 
 struct PlaceDetailView: View {
     let place: Place
+    @State private var voteMessage: String?
+    @State private var aggregate: VoteAggregate?
+    @State private var isVoting = false
 
     var body: some View {
         List {
@@ -33,7 +38,47 @@ struct PlaceDetailView: View {
                     .accessibilityElement(children: .combine)
                 }
             }
+            Section("Was it worth visiting?") {
+                Text("Voting is enabled only after this device verifies that you are at the place. Precise location is never uploaded.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                HStack {
+                    Button { Task { await vote(.worthVisiting) } } label: {
+                        Label("Worth it", systemImage: "hand.thumbsup")
+                    }
+                    .disabled(isVoting)
+                    Button { Task { await vote(.notWorthVisiting) } } label: {
+                        Label("Not worth it", systemImage: "hand.thumbsdown")
+                    }
+                    .disabled(isVoting)
+                }
+                if let aggregate {
+                    Text(aggregate.isInformative ? "Community signal: \(aggregate.confidenceScore, specifier: "%.0f")% positive from \(aggregate.totalCount) votes." : "Not enough votes for a reliable community signal.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if let voteMessage { Text(voteMessage).font(.caption).foregroundStyle(.secondary) }
+            }
         }
         .navigationTitle(place.name)
+    }
+
+    @MainActor
+    private func vote(_ value: VoteValue) async {
+        isVoting = true
+        voteMessage = nil
+        defer { isVoting = false }
+        do {
+            let location = try await CoreLocationService().currentLocation()
+            guard let evidence = VisitEligibilityEvaluator(policy: VisitEligibilityPolicy()).evaluate(place: place, location: location) else {
+                voteMessage = "You must be close enough to the place for a recent, accurate location fix."
+                return
+            }
+            let cloud = try await CloudKitVoteService.forCurrentUser()
+            let vote = PlaceVote(id: UUID(), placeID: place.id, value: value, verification: .currentProximity, coarseVisitMonth: Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: evidence.observedAt)), updatedAt: .now)
+            try await VoteCoordinator(cloud: cloud).submit(vote, eligibility: VisitEligibility(isEligible: true, reason: "Verified proximity"))
+            aggregate = await VoteCoordinator(cloud: cloud).aggregate(for: place.id)
+            voteMessage = "Your vote was saved."
+        } catch {
+            voteMessage = "Voting is unavailable without an authenticated iCloud account."
+        }
     }
 }
