@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import CloudKit
+import MapKit
 import SwiftUI
 
 struct PlaceImageAsset: Codable, Equatable, Identifiable, Sendable {
@@ -16,6 +17,8 @@ struct PlaceDetailView: View {
     @State private var voteMessage: String?
     @State private var aggregate: VoteAggregate?
     @State private var isVoting = false
+    @State private var imageAsset: PlaceImageAsset?
+    @State private var appleEnrichment: ApplePlaceEnrichment?
 
     var body: some View {
         List {
@@ -26,6 +29,29 @@ struct PlaceDetailView: View {
                 if let minutes = place.estimatedVisitDurationMinutes {
                     LabeledContent("Typical visit", value: "\(minutes) minutes")
                 }
+            }
+            if let imageAsset {
+                Section("Image") {
+                    AsyncImage(url: imageAsset.remoteURL) { phase in
+                        switch phase {
+                        case .success(let image): image.resizable().scaledToFit()
+                        case .failure: Label("Image unavailable", systemImage: "photo.badge.exclamationmark")
+                        default: ProgressView()
+                        }
+                    }
+                    Text("\(imageAsset.attribution) · \(imageAsset.license)")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            if let appleEnrichment {
+                Section("Current map information") {
+                    Text(appleEnrichment.name)
+                    if let address = appleEnrichment.address { Text(address).font(.caption).foregroundStyle(.secondary) }
+                    if let phone = appleEnrichment.phoneNumber { Text(phone).font(.caption) }
+                    Button("Open in Maps") { openInMaps() }
+                }
+            } else {
+                Section("Map") { Button("Look up current Apple Maps information") { Task { await enrichFromAppleMaps() } } }
             }
             Section("Sources") {
                 ForEach(place.sources, id: \.canonicalKey) { source in
@@ -59,6 +85,20 @@ struct PlaceDetailView: View {
             }
         }
         .navigationTitle(place.name)
+        .task {
+            imageAsset = try? await WikimediaCommonsImageService().image(for: place)
+        }
+    }
+
+    @MainActor
+    private func enrichFromAppleMaps() async {
+        appleEnrichment = try? await ApplePlaceEnrichmentService().lookup(place: place)
+    }
+
+    private func openInMaps() {
+        let item = MKMapItem(location: CLLocation(latitude: place.coordinate.latitude, longitude: place.coordinate.longitude), address: nil)
+        item.name = place.name
+        item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
     }
 
     @MainActor
