@@ -8,9 +8,28 @@ struct TripDetailView: View {
     @State private var destinationQuery = ""
     @State private var isSearching = false
     @State private var searchError: String?
+    @State private var route: MKRoute?
+    @State private var camera: MapCameraPosition = .automatic
 
     var body: some View {
         List {
+            if !trip.stops.isEmpty {
+                Section("Route") {
+                    Map(position: $camera) {
+                        ForEach(trip.stops) { stop in
+                            Marker(stop.name, coordinate: CLLocationCoordinate2D(latitude: stop.coordinate.latitude, longitude: stop.coordinate.longitude))
+                        }
+                        if let route { MapPolyline(route.polyline).stroke(.blue, lineWidth: 5) }
+                    }
+                    .frame(minHeight: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .task(id: trip.stops.map(\.id)) { await calculateRoute() }
+                    if let route {
+                        Text("\(route.distance / 1000, specifier: "%.1f") km · \(route.expectedTravelTime / 60, specifier: "%.0f") min")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
             Section("Stops") {
                 if trip.stops.isEmpty {
                     ContentUnavailableView("No Stops", systemImage: "mappin", description: Text("Search for a destination below."))
@@ -72,5 +91,16 @@ struct TripDetailView: View {
             TripStop(id: stop.id, name: stop.name, coordinate: stop.coordinate, order: index)
         }
         try? modelContext.save()
+    }
+
+    private func calculateRoute() async {
+        guard trip.stops.count >= 2 else { route = nil; return }
+        let request = MKDirections.Request()
+        request.source = MKMapItem(location: CLLocation(latitude: trip.stops[0].coordinate.latitude, longitude: trip.stops[0].coordinate.longitude), address: nil)
+        let last = trip.stops[trip.stops.count - 1]
+        request.destination = MKMapItem(location: CLLocation(latitude: last.coordinate.latitude, longitude: last.coordinate.longitude), address: nil)
+        request.transportType = .automobile
+        do { route = try await MKDirections(request: request).calculate().routes.first }
+        catch { route = nil }
     }
 }
