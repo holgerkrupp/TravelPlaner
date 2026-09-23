@@ -22,6 +22,7 @@ struct CoverageRegion: Equatable, Sendable {
     static func == (lhs: CoverageRegion, rhs: CoverageRegion) -> Bool {
         lhs.center.latitude == rhs.center.latitude && lhs.center.longitude == rhs.center.longitude && lhs.radius == rhs.radius
     }
+
 }
 
 struct VisitEligibility: Equatable, Sendable {

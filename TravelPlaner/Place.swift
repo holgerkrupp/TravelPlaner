@@ -56,7 +56,7 @@ struct PlaceSourceReference: Codable, Equatable, Hashable, Sendable {
     }
 
     /// Suitable for deterministic local deduplication and CloudKit record names.
-    var canonicalKey: String { "\(source.rawValue):\(externalID)" }
+    nonisolated var canonicalKey: String { "\(source.rawValue):\(externalID)" }
 
     enum ValidationError: Error, Equatable {
         case emptyExternalID
@@ -151,7 +151,7 @@ struct Place: Codable, Identifiable, Equatable, Sendable {
         self.baseNotability = baseNotability
     }
 
-    var canonicalSourceKeys: Set<String> { Set(sources.map(\.canonicalKey)) }
+    nonisolated var canonicalSourceKeys: Set<String> { Set(sources.map(\.canonicalKey)) }
 
     enum ValidationError: Error, Equatable {
         case emptyName
@@ -165,7 +165,7 @@ struct Place: Codable, Identifiable, Equatable, Sendable {
 
 enum PlaceDeduplicator {
     /// Keeps the first record for each stable source identity, preserving input order.
-    static func unique(_ places: [Place]) -> [Place] {
+    nonisolated static func unique(_ places: [Place]) -> [Place] {
         var seen = Set<String>()
         return places.filter { place in
             let keys = place.canonicalSourceKeys
