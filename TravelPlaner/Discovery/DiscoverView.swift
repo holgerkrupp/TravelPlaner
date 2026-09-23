@@ -12,6 +12,9 @@ struct DiscoverView: View {
     @State private var showingSuggestion = false
     @State private var isLocating = false
     @State private var locationMessage: String?
+    @State private var selectedCategory: PlaceCategory?
+    @State private var hasMapAppeared = false
+    @State private var visibleDiscoveryTask: Task<Void, Never>?
     private let locationService = CoreLocationService()
     private let discoveryCoordinator: DiscoveryRequestCoordinator
 
@@ -32,6 +35,11 @@ struct DiscoverView: View {
         return scored.map(\.0)
     }
 
+    private var displayedPlaces: [Place] {
+        guard let selectedCategory else { return rankedPlaces }
+        return rankedPlaces.filter { $0.category == selectedCategory }
+    }
+
     init() {
         let pipeline = DiscoveryPipeline(
             cloudKit: PublicCloudKitService(),
@@ -43,7 +51,7 @@ struct DiscoverView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(rankedPlaces, id: \.id, selection: $selectedPlaceID) { place in
+            List(displayedPlaces, id: \.id, selection: $selectedPlaceID) { place in
                 VStack(alignment: .leading, spacing: 4) {
                     Text(place.name).font(.headline)
                     Text(place.editorialReason).font(.subheadline).foregroundStyle(.secondary)
@@ -58,6 +66,14 @@ struct DiscoverView: View {
             .navigationTitle("Discover")
             .toolbar {
                 Button { showingSuggestion = true } label: { Label("Suggest a place", systemImage: "plus.bubble") }
+                Menu {
+                    Button("All categories") { selectedCategory = nil }
+                    ForEach(PlaceCategory.allCases, id: \.self) { category in
+                        Button(category.rawValue.capitalized) { selectedCategory = category }
+                    }
+                } label: {
+                    Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
+                }
                 Button {
                     Task { await centerOnCurrentLocation() }
                 } label: {
@@ -70,14 +86,21 @@ struct DiscoverView: View {
             }
         } detail: {
             Map(position: $camera, selection: $selectedPlaceID) {
-                ForEach(rankedPlaces, id: \.id) { place in
+                ForEach(displayedPlaces, id: \.id) { place in
                     Marker(place.name, coordinate: CLLocationCoordinate2D(latitude: place.coordinate.latitude, longitude: place.coordinate.longitude))
                         .tag(place.id)
                 }
             }
             .mapStyle(.standard)
+            .onMapCameraChange(frequency: .onEnd) { context in
+                guard hasMapAppeared else {
+                    hasMapAppeared = true
+                    return
+                }
+                scheduleVisibleDiscovery(for: context.region)
+            }
             .overlay(alignment: .bottom) {
-                if let selectedPlace = rankedPlaces.first(where: { $0.id == selectedPlaceID }) {
+                if let selectedPlace = displayedPlaces.first(where: { $0.id == selectedPlaceID }) {
                     PlaceCard(place: selectedPlace)
                         .padding()
                 }
@@ -90,6 +113,31 @@ struct DiscoverView: View {
                 }
             }
             .navigationTitle("Map")
+        }
+        .onDisappear { visibleDiscoveryTask?.cancel() }
+    }
+
+    @MainActor
+    private func scheduleVisibleDiscovery(for region: MKCoordinateRegion) {
+        visibleDiscoveryTask?.cancel()
+        visibleDiscoveryTask = Task {
+            do {
+                try await Task.sleep(for: .milliseconds(450))
+                try Task.checkCancellation()
+                let center = region.center
+                let edge = CLLocationCoordinate2D(latitude: center.latitude + region.span.latitudeDelta / 2, longitude: center.longitude)
+                let radius = CLLocation(latitude: center.latitude, longitude: center.longitude)
+                    .distance(from: CLLocation(latitude: edge.latitude, longitude: edge.longitude))
+                let request = DiscoveryRequest(center: center, radius: min(max(radius, 1_000), 100_000))
+                let discovered = try await discoveryCoordinator.discover(for: request)
+                guard !Task.isCancelled, !discovered.isEmpty else { return }
+                places = discovered
+                SwiftDataPlaceSnapshotStore(context: modelContext).store(discovered, context: "visible")
+            } catch is CancellationError {
+                // A newer camera position superseded this request.
+            } catch {
+                // Keep current contents when a visible-region refresh fails.
+            }
         }
     }
 
