@@ -9,7 +9,7 @@ struct Trip: Codable, Identifiable, Equatable, Sendable {
     var endDate: Date?
     var destinations: [String]
 
-    init(
+    nonisolated init(
         id: UUID = UUID(),
         name: String,
         startDate: Date? = nil,
