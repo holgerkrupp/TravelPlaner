@@ -82,4 +82,14 @@ final class PersistenceAndCloudKitTests: XCTestCase {
         let reloaded = SwiftDataVoteAggregateStore(context: ModelContext(container)).load(for: placeID)
         XCTAssertEqual(reloaded?.aggregate, aggregate)
     }
+
+    func testVoteIdentitySupportsChangesWithoutDuplicateAccountPlaceRecords() {
+        let placeID = UUID()
+        let first = CloudKitVoteService.recordID(userKey: "account-A", placeID: placeID)
+        let changedValueUsesSameRecord = CloudKitVoteService.recordID(userKey: "account-A", placeID: placeID)
+        let otherAccount = CloudKitVoteService.recordID(userKey: "account-B", placeID: placeID)
+
+        XCTAssertEqual(first, changedValueUsesSameRecord)
+        XCTAssertNotEqual(first, otherAccount)
+    }
 }

@@ -29,7 +29,7 @@ struct CloudKitVoteService: VoteCloudService {
     }
 
     func save(_ vote: PlaceVote) async throws {
-        let record = CKRecord(recordType: "PlaceVote", recordID: recordID(for: vote.placeID))
+        let record = CKRecord(recordType: "PlaceVote", recordID: Self.recordID(userKey: userKey, placeID: vote.placeID))
         record["placeID"] = vote.placeID.uuidString as NSString
         record["value"] = vote.value.rawValue as NSString
         record["verificationType"] = vote.verification.rawValue as NSString
@@ -63,7 +63,7 @@ struct CloudKitVoteService: VoteCloudService {
         }
     }
 
-    private func recordID(for placeID: UUID) -> CKRecord.ID {
+    static func recordID(userKey: String, placeID: UUID) -> CKRecord.ID {
         let input = Data("\(userKey):\(placeID.uuidString)".utf8)
         let digest = SHA256.hash(data: input).map { String(format: "%02x", $0) }.joined()
         return CKRecord.ID(recordName: "vote_\(digest)")
