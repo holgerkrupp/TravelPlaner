@@ -3,6 +3,36 @@ import Foundation
 
 enum OpenDataAdapterError: Error { case invalidResponse, invalidPayload, unsupportedRegion }
 
+private enum OpenDataNetwork {
+    static func fetch(_ request: URLRequest, using session: URLSession, attempts: Int = 3) async throws -> (Data, HTTPURLResponse) {
+        var lastError: Error?
+        for attempt in 0..<max(1, attempts) {
+            try Task.checkCancellation()
+            do {
+                let (data, response) = try await session.data(for: request)
+                guard let http = response as? HTTPURLResponse else { throw OpenDataAdapterError.invalidResponse }
+                if (http.statusCode == 429 || (500...599).contains(http.statusCode)) && attempt + 1 < attempts {
+                    try await backoff(attempt: attempt)
+                    continue
+                }
+                return (data, http)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                lastError = error
+                if attempt + 1 < attempts { try await backoff(attempt: attempt) }
+            }
+        }
+        throw lastError ?? OpenDataAdapterError.invalidResponse
+    }
+
+    private static func backoff(attempt: Int) async throws {
+        try Task.checkCancellation()
+        let delay = UInt64(250_000_000) * UInt64(1 << min(attempt, 2))
+        try await Task.sleep(nanoseconds: delay)
+    }
+}
+
 private struct WikidataGeoSearchResponse: Decodable {
     struct Query: Decodable {
         struct Page: Decodable {
@@ -44,8 +74,8 @@ struct WikidataGeoSearchAdapter: PlaceSourceAdapter {
         var request = URLRequest(url: url)
         request.setValue("TravelPlaner/1.0 (on-device discovery)", forHTTPHeaderField: "User-Agent")
         try Task.checkCancellation()
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else { throw OpenDataAdapterError.invalidResponse }
+        let (data, response) = try await OpenDataNetwork.fetch(request, using: session)
+        guard 200..<300 ~= response.statusCode else { throw OpenDataAdapterError.invalidResponse }
         let payload = try JSONDecoder().decode(WikidataGeoSearchResponse.self, from: data)
         return try payload.query.geosearch.map { item in
             let reference = try PlaceSourceReference(
@@ -100,8 +130,8 @@ struct OpenStreetMapOverpassAdapter: PlaceSourceAdapter {
         request.setValue("application/x-www-form-urlencoded; charset=utf-8", forHTTPHeaderField: "Content-Type")
         request.setValue("TravelPlaner/1.0 (on-device discovery)", forHTTPHeaderField: "User-Agent")
         try Task.checkCancellation()
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else { throw OpenDataAdapterError.invalidResponse }
+        let (data, response) = try await OpenDataNetwork.fetch(request, using: session)
+        guard 200..<300 ~= response.statusCode else { throw OpenDataAdapterError.invalidResponse }
         let payload = try JSONDecoder().decode(OverpassResponse.self, from: data)
         return try payload.elements.compactMap { element in
             guard let name = element.tags?["name"], !name.isEmpty else { return nil }
