@@ -141,4 +141,16 @@ final class PersistenceAndCloudKitTests: XCTestCase {
         XCTAssertFalse(store.toggle(place))
         XCTAssertFalse(store.contains(place.id))
     }
+
+    func testVisitEligibilityEvidenceIsStoredOnlyUntilItsExpiry() throws {
+        let container = try TravelPlanerSchema.container(inMemory: true)
+        let store = SwiftDataVisitEligibilityStore(context: ModelContext(container))
+        let placeID = UUID()
+        let observedAt = Date(timeIntervalSince1970: 50_000)
+        let evidence = VisitEvidence(placeID: placeID, observedAt: observedAt, distanceMeters: 25, horizontalAccuracyMeters: 10)
+
+        store.record(evidence, expiresAt: observedAt.addingTimeInterval(60))
+        XCTAssertTrue(store.isEligible(placeID: placeID, now: observedAt.addingTimeInterval(30)))
+        XCTAssertFalse(store.isEligible(placeID: placeID, now: observedAt.addingTimeInterval(61)))
+    }
 }

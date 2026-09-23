@@ -204,6 +204,35 @@ final class SwiftDataSavedPlaceStore {
 }
 
 @MainActor
+final class SwiftDataVisitEligibilityStore {
+    private let context: ModelContext
+
+    init(context: ModelContext) { self.context = context }
+
+    func record(_ evidence: VisitEvidence, expiresAt: Date) {
+        let existing = (try? context.fetch(FetchDescriptor<PersistedVisitEligibility>()))?.first { $0.placeID == evidence.placeID }
+        if let existing {
+            existing.observedAt = evidence.observedAt
+            existing.evidence = "distance=\(evidence.distanceMeters),accuracy=\(evidence.horizontalAccuracyMeters)"
+            existing.expiresAt = expiresAt
+        } else {
+            context.insert(PersistedVisitEligibility(
+                placeID: evidence.placeID,
+                observedAt: evidence.observedAt,
+                evidence: "distance=\(evidence.distanceMeters),accuracy=\(evidence.horizontalAccuracyMeters)",
+                expiresAt: expiresAt
+            ))
+        }
+        try? context.save()
+    }
+
+    func isEligible(placeID: UUID, now: Date = .now) -> Bool {
+        guard let record = (try? context.fetch(FetchDescriptor<PersistedVisitEligibility>()))?.first(where: { $0.placeID == placeID }) else { return false }
+        return record.expiresAt >= now
+    }
+}
+
+@MainActor
 final class SwiftDataTripStore: ObservableObject {
     @Published private(set) var trips: [Trip] = []
     private let context: ModelContext

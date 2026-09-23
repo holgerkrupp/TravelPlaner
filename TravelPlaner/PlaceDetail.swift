@@ -132,6 +132,8 @@ struct PlaceDetailView: View {
                 voteMessage = "You must be close enough to the place for a recent, accurate location fix."
                 return
             }
+            let policy = VisitEligibilityPolicy()
+            SwiftDataVisitEligibilityStore(context: modelContext).record(evidence, expiresAt: evidence.observedAt.addingTimeInterval(policy.maximumAge))
             let cloud = try await CloudKitVoteService.forCurrentUser()
             let vote = PlaceVote(id: UUID(), placeID: place.id, value: value, verification: .currentProximity, coarseVisitMonth: Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: evidence.observedAt)), updatedAt: .now)
             try await VoteCoordinator(cloud: cloud, offlineQueue: appState.offlineWriteQueue).submit(vote, eligibility: VisitEligibility(isEligible: true, reason: "Verified proximity"))
