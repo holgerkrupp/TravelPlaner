@@ -31,7 +31,12 @@ struct PublicCloudKitService: CloudKitService {
             operation.queryResultBlock = { result in
                 switch result {
                 case .success:
-                    let places = records.compactMap { try? CloudKitPlaceRecordMapper.makePlace(from: $0) }
+                    let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
+                    let places = records.compactMap { record -> Place? in
+                        guard let place = try? CloudKitPlaceRecordMapper.makePlace(from: record) else { return nil }
+                        let location = CLLocation(latitude: place.coordinate.latitude, longitude: place.coordinate.longitude)
+                        return center.distance(from: location) <= region.radius ? place : nil
+                    }
                     continuation.resume(returning: places)
                 case let .failure(error): continuation.resume(throwing: error)
                 }
