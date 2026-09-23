@@ -82,7 +82,7 @@ struct PlaceDetailView: View {
                     .disabled(isVoting)
                 }
                 if let aggregate {
-                    Text(aggregate.isInformative ? "Community signal: \(aggregate.confidenceScore, specifier: "%.0f")% positive from \(aggregate.totalCount) votes." : "Not enough votes for a reliable community signal.")
+                    Text(aggregate.isInformative ? "Community signal: \(aggregate.confidenceScore * 100, specifier: "%.0f")% positive from \(aggregate.totalCount) votes." : "Not enough votes for a reliable community signal.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 if let voteMessage { Text(voteMessage).font(.caption).foregroundStyle(.secondary) }
@@ -95,7 +95,7 @@ struct PlaceDetailView: View {
             } label: {
                 Label(isSaved ? "Remove saved place" : "Save place", systemImage: isSaved ? "bookmark.fill" : "bookmark")
             }
-            .accessibilityLabel(isSaved ? "Remove (place.name) from saved places" : "Save (place.name)")
+            .accessibilityLabel(isSaved ? "Remove \(place.name) from saved places" : "Save \(place.name)")
         }
         .task {
             isSaved = SwiftDataSavedPlaceStore(context: modelContext).contains(place.id)
@@ -127,15 +127,22 @@ struct PlaceDetailView: View {
         voteMessage = nil
         defer { isVoting = false }
         do {
-            let location = try await CoreLocationService().currentLocation()
-            guard let evidence = VisitEligibilityEvaluator(policy: VisitEligibilityPolicy()).evaluate(place: place, location: location) else {
-                voteMessage = "You must be close enough to the place for a recent, accurate location fix."
-                return
-            }
             let policy = VisitEligibilityPolicy()
-            SwiftDataVisitEligibilityStore(context: modelContext).record(evidence, expiresAt: evidence.observedAt.addingTimeInterval(policy.maximumAge))
+            let eligibilityStore = SwiftDataVisitEligibilityStore(context: modelContext)
+            let verification: VoteVerificationType
+            if eligibilityStore.isEligible(placeID: place.id) {
+                verification = .observedVisit
+            } else {
+                let location = try await CoreLocationService().currentLocation()
+                guard let evidence = VisitEligibilityEvaluator(policy: policy).evaluate(place: place, location: location) else {
+                    voteMessage = "You must be close enough to the place for a recent, accurate location fix."
+                    return
+                }
+                eligibilityStore.record(evidence, expiresAt: evidence.observedAt.addingTimeInterval(policy.maximumAge))
+                verification = .currentProximity
+            }
             let cloud = try await CloudKitVoteService.forCurrentUser()
-            let vote = PlaceVote(id: UUID(), placeID: place.id, value: value, verification: .currentProximity, coarseVisitMonth: Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: evidence.observedAt)), updatedAt: .now)
+            let vote = PlaceVote(id: UUID(), placeID: place.id, value: value, verification: verification, coarseVisitMonth: Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: .now)), updatedAt: .now)
             try await VoteCoordinator(cloud: cloud, offlineQueue: appState.offlineWriteQueue).submit(vote, eligibility: VisitEligibility(isEligible: true, reason: "Verified proximity"))
             aggregate = await VoteCoordinator(cloud: cloud).aggregate(for: place.id)
             SwiftDataVoteAggregateStore(context: modelContext).store(aggregate!, for: place.id)

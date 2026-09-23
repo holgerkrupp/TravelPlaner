@@ -30,17 +30,28 @@ struct CloudKitVoteService: VoteCloudService {
 
     func save(_ vote: PlaceVote) async throws {
         let record = CKRecord(recordType: "PlaceVote", recordID: Self.recordID(userKey: userKey, placeID: vote.placeID))
+        Self.apply(vote, to: record)
+        do { _ = try await database.save(record) }
+        catch let error as CKError where error.code == .serverRecordChanged {
+            // A record owned by this account may already exist. Fetch its change tag,
+            // apply the new vote, and save it so changing a vote works without
+            // requiring arbitrary clients to edit somebody else's records.
+            let existing = try await database.record(for: record.recordID)
+            Self.apply(vote, to: existing)
+            do {
+                _ = try await database.save(existing)
+            } catch let retryError as CKError where retryError.code == .serverRecordChanged {
+                throw VoteError.conflict
+            }
+        }
+    }
+
+    private static func apply(_ vote: PlaceVote, to record: CKRecord) {
         record["placeID"] = vote.placeID.uuidString as NSString
         record["value"] = vote.value.rawValue as NSString
         record["verificationType"] = vote.verification.rawValue as NSString
         record["updatedAt"] = vote.updatedAt as NSDate
-        if let month = vote.coarseVisitMonth { record["visitMonth"] = month as NSDate }
-        do { _ = try await database.save(record) }
-        catch let error as CKError where error.code == .serverRecordChanged {
-            // Fetching the existing record is intentionally the conflict path;
-            // callers can retry with the current value instead of creating a duplicate.
-            throw VoteError.conflict
-        }
+        record["visitMonth"] = vote.coarseVisitMonth as NSDate?
     }
 
     func fetchVotes(for placeID: UUID) async throws -> [PlaceVote] {

@@ -82,6 +82,28 @@ final class PersistenceAndCloudKitTests: XCTestCase {
         XCTAssertEqual(record["externalID"] as? String, "node:1")
     }
 
+    func testCloudKitPlaceMappingPreservesAllSourceProvenance() throws {
+        let wikidata = try PlaceSourceReference(source: .wikidata, externalID: "Q-multi")
+        let osm = try PlaceSourceReference(
+            source: .openStreetMap,
+            externalID: "way:multi",
+            license: "ODbL 1.0",
+            attribution: "OpenStreetMap contributors"
+        )
+        let place = try Place(
+            name: "Multi-source fixture",
+            coordinate: try GeoCoordinate(latitude: 48, longitude: 11),
+            category: .unusual,
+            editorialReason: "Provenance fixture.",
+            sources: [wikidata, osm]
+        )
+
+        let restored = try CloudKitPlaceRecordMapper.makePlace(from: CloudKitPlaceRecordMapper.makeRecord(from: place))
+
+        XCTAssertEqual(Set(restored.sources.map(\.canonicalKey)), Set(place.sources.map(\.canonicalKey)))
+        XCTAssertEqual(restored.sources.first(where: { $0.source == .openStreetMap })?.license, "ODbL 1.0")
+    }
+
     func testPlaceSnapshotSurvivesStoreReload() throws {
         let container = try TravelPlanerSchema.container(inMemory: true)
         let context = ModelContext(container)

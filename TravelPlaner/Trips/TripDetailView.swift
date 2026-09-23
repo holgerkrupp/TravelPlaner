@@ -90,7 +90,7 @@ struct TripDetailView: View {
                             Text(detour.place.name).font(.headline)
                             Text(detour.place.editorialReason).font(.subheadline)
                             if let route = detour.approximateDetour {
-                                Text("Approx. \(route.expectedTravelTime / 60, specifier: "%.0f") min of route segments")
+                                Text("Approx. \(route.expectedTravelTime / 60, specifier: "%.0f") min extra detour")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Button("Add to trip") { addDetour(detour) }

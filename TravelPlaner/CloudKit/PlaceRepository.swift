@@ -1,4 +1,5 @@
 import CloudKit
+import CryptoKit
 import Foundation
 
 struct CloudKitPlaceRecordMapper: Sendable {
@@ -6,11 +7,8 @@ struct CloudKitPlaceRecordMapper: Sendable {
 
     static func recordID(for place: Place) -> CKRecord.ID {
         let key = place.sources.map(\.canonicalKey).sorted().first ?? place.id.uuidString
-        let safe = key.unicodeScalars.map { scalar in
-            let isASCIIAlphaNumeric = scalar.value >= 48 && scalar.value <= 57 || scalar.value >= 65 && scalar.value <= 90 || scalar.value >= 97 && scalar.value <= 122
-            return isASCIIAlphaNumeric || scalar == "-" || scalar == "_" || scalar == "." ? String(scalar) : "_"
-        }.joined()
-        return CKRecord.ID(recordName: "place_\(safe)")
+        let digest = SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
+        return CKRecord.ID(recordName: "place_\(digest)")
     }
 
     static func makeRecord(from place: Place) throws -> CKRecord {
@@ -31,6 +29,9 @@ struct CloudKitPlaceRecordMapper: Sendable {
         record["attribution"] = source.attribution as NSString?
         record["sourceUpdatedAt"] = source.sourceUpdatedAt as NSDate?
         record["discoveryVersion"] = source.discoveryVersion as NSString?
+        if let encodedSources = try? JSONEncoder().encode(place.sources) {
+            record["sourcesJSON"] = encodedSources as NSData
+        }
         record["interests"] = place.interests.map(\.rawValue) as NSArray
         record["baseNotability"] = place.baseNotability as NSNumber
         record["estimatedVisitMinutes"] = place.estimatedVisitDurationMinutes as NSNumber?
@@ -63,6 +64,14 @@ struct CloudKitPlaceRecordMapper: Sendable {
         let id = (record["stableID"] as? String).flatMap(UUID.init(uuidString:)) ?? UUID()
         let aliases = record["alternateNames"] as? [String] ?? []
         let interests = Set((record["interests"] as? [String] ?? []).compactMap(PlaceInterest.init(rawValue:)))
+        let sources: [PlaceSourceReference]
+        if let encodedSources = record["sourcesJSON"] as? Data,
+           let decodedSources = try? JSONDecoder().decode([PlaceSourceReference].self, from: encodedSources),
+           !decodedSources.isEmpty {
+            sources = decodedSources
+        } else {
+            sources = [reference]
+        }
         return try Place(
             id: id,
             name: name,
@@ -73,7 +82,7 @@ struct CloudKitPlaceRecordMapper: Sendable {
             interests: interests,
             kind: kind,
             editorialReason: reason,
-            sources: [reference],
+            sources: sources,
             estimatedVisitDurationMinutes: (record["estimatedVisitMinutes"] as? NSNumber)?.intValue,
             baseNotability: (record["baseNotability"] as? NSNumber)?.doubleValue ?? 0
         )

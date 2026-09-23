@@ -39,6 +39,23 @@ final class TripDiscoveryTests: XCTestCase {
         let results = try await coordinator.discover(for: trip)
 
         XCTAssertEqual(results.map(\.place.id), [place.id])
-        XCTAssertEqual(results.first?.approximateDetour?.expectedTravelTime, 120)
+        XCTAssertEqual(results.first?.approximateDetour?.expectedTravelTime, 60)
+    }
+
+    func testRouteCorridorIncludesPlacesBetweenStops() throws {
+        let place = try Place(
+            name: "Midpoint discovery",
+            coordinate: try GeoCoordinate(latitude: 0, longitude: 0.5),
+            category: .unusual,
+            editorialReason: "A fixture on the route segment.",
+            sources: [try PlaceSourceReference(source: .wikidata, externalID: "Q-midpoint")]
+        )
+        let stops = [
+            TripStop(name: "Start", coordinate: try GeoCoordinate(latitude: 0, longitude: 0), order: 0),
+            TripStop(name: "End", coordinate: try GeoCoordinate(latitude: 0, longitude: 1), order: 1)
+        ]
+        let filter = RouteCandidateFilter(corridor: RouteCorridor(stops: stops, widthMeters: 1_000))
+
+        XCTAssertTrue(filter.isNearCorridor(place, approximateDistanceMeters: 0))
     }
 }

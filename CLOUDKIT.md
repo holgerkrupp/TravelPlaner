@@ -4,7 +4,7 @@ TravelPlaner uses the public database of `iCloud.de.holgerkrupp.travelplaner`.
 
 ## Record types
 
-- `Place`: canonical source-backed discoveries. The record name is derived from the first stable source key (`source:externalID`), so independent clients converge on one record.
+- `Place`: canonical source-backed discoveries. The record name is a deterministic SHA-256 digest of the first stable source key (`source:externalID`), so independent clients converge on one record without identifier-character collisions.
   Source freshness (`sourceUpdatedAt`) and the producer's `discoveryVersion` travel with each source reference for local revalidation and migration.
 - `PlaceVote`: one record per account/place. The record name is SHA-256 of the account key and Place UUID. Only coarse verification metadata is stored.
 - `PlaceSuggestion`: untrusted user proposals. These are never read as canonical Places and require developer moderation.
@@ -14,7 +14,7 @@ TravelPlaner uses the public database of `iCloud.de.holgerkrupp.travelplaner`.
 1. Enable iCloud/CloudKit for the application identifier `de.holgerkrupp.travelplaner`.
 2. Add the container identifier from `TravelPlaner/TravelPlaner.entitlements` to the app target and development environment.
 3. Deploy the `Place`, `PlaceVote`, and `PlaceSuggestion` record types to the development schema before using live discovery.
-4. Add query indexes for `Place.latitude`, `Place.longitude`, `Place.source`, `Place.externalID`, `PlaceVote.placeID`, and `PlaceSuggestion.status`.
+4. Add query indexes for `Place.stableID`, `Place.latitude`, `Place.longitude`, `Place.source`, `Place.externalID`, `PlaceVote.placeID`, and `PlaceSuggestion.status`.
 5. Verify public read access and authenticated create access. Do not grant ordinary clients update/delete access to records owned by other users.
 6. Promote the schema only after the mapping and conflict tests pass.
 

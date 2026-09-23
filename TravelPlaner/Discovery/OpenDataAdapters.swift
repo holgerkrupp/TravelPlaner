@@ -44,6 +44,16 @@ private struct WikidataGeoSearchResponse: Decodable {
         let geosearch: [Page]
     }
     let query: Query
+    let continuation: Continuation?
+
+    enum CodingKeys: String, CodingKey {
+        case query
+        case continuation = "continue"
+    }
+
+    struct Continuation: Decodable {
+        let gscontinue: String?
+    }
 }
 
 struct WikidataGeoSearchAdapter: PlaceSourceAdapter {
@@ -55,33 +65,48 @@ struct WikidataGeoSearchAdapter: PlaceSourceAdapter {
     init(session: URLSession = .shared, endpoint: URL = URL(string: "https://www.wikidata.org/w/api.php")!, limit: Int = 50) {
         self.session = session
         self.endpoint = endpoint
-        self.limit = min(max(limit, 1), 50)
+        self.limit = min(max(limit, 1), 200)
     }
 
     func discover(in region: CoverageRegion) async throws -> [PlaceCandidate] {
         guard region.radius > 0, region.radius <= 100_000 else { throw OpenDataAdapterError.unsupportedRegion }
-        var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)
-        components?.queryItems = [
-            URLQueryItem(name: "action", value: "query"),
-            URLQueryItem(name: "list", value: "geosearch"),
-            URLQueryItem(name: "gscoord", value: "\(region.center.latitude)|\(region.center.longitude)"),
-            URLQueryItem(name: "gsradius", value: String(Int(region.radius))),
-            URLQueryItem(name: "gslimit", value: String(limit)),
-            URLQueryItem(name: "format", value: "json"),
-            URLQueryItem(name: "origin", value: "*")
-        ]
-        guard let url = components?.url else { throw OpenDataAdapterError.invalidResponse }
-        var request = URLRequest(url: url)
-        request.setValue("TravelPlaner/1.0 (on-device discovery)", forHTTPHeaderField: "User-Agent")
-        try Task.checkCancellation()
-        let (data, response) = try await OpenDataNetwork.fetch(request, using: session)
-        guard 200..<300 ~= response.statusCode else { throw OpenDataAdapterError.invalidResponse }
-        let payload = try JSONDecoder().decode(WikidataGeoSearchResponse.self, from: data)
-        return try payload.query.geosearch.map { item in
+        let pageSize = min(limit, 50)
+        var continuationToken: String?
+        var items: [WikidataGeoSearchResponse.Query.Page] = []
+        repeat {
+            var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)
+            components?.queryItems = [
+                URLQueryItem(name: "action", value: "query"),
+                URLQueryItem(name: "list", value: "geosearch"),
+                URLQueryItem(name: "gscoord", value: "\(region.center.latitude)|\(region.center.longitude)"),
+                URLQueryItem(name: "gsradius", value: String(Int(region.radius))),
+                URLQueryItem(name: "gslimit", value: String(pageSize)),
+                URLQueryItem(name: "format", value: "json"),
+                URLQueryItem(name: "origin", value: "*")
+            ]
+            if let continuationToken {
+                components?.queryItems?.append(URLQueryItem(name: "gscontinue", value: continuationToken))
+            }
+            guard let url = components?.url else { throw OpenDataAdapterError.invalidResponse }
+            var request = URLRequest(url: url)
+            request.setValue("TravelPlaner/1.0 (on-device discovery)", forHTTPHeaderField: "User-Agent")
+            try Task.checkCancellation()
+            let (data, response) = try await OpenDataNetwork.fetch(request, using: session)
+            guard 200..<300 ~= response.statusCode else { throw OpenDataAdapterError.invalidResponse }
+            let payload = try JSONDecoder().decode(WikidataGeoSearchResponse.self, from: data)
+            items.append(contentsOf: payload.query.geosearch)
+            continuationToken = payload.continuation?.gscontinue
+        } while items.count < limit && continuationToken != nil
+
+        return try items.prefix(limit).map { item in
+            let isWikidataID = item.title.first == "Q" && item.title.dropFirst().allSatisfy(\.isNumber)
+            let externalID = isWikidataID ? item.title : "page:\(item.pageid)"
             let reference = try PlaceSourceReference(
                 source: .wikidata,
-                externalID: "page:\(item.pageid)",
-                sourceURL: URL(string: "https://www.wikidata.org/wiki/Special:EntityData/Q\(item.pageid)"),
+                externalID: externalID,
+                sourceURL: isWikidataID
+                    ? URL(string: "https://www.wikidata.org/entity/\(item.title)")
+                    : URL(string: "https://www.wikidata.org/w/index.php?curid=\(item.pageid)"),
                 license: "CC0",
                 attribution: "Wikidata"
             )
