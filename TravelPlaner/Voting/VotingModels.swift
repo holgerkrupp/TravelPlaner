@@ -22,7 +22,7 @@ struct VoteAggregate: Equatable, Sendable {
 }
 
 enum VoteAggregator {
-    static func aggregate(_ votes: [PlaceVote], minimumInformativeVotes: Int = 3) -> VoteAggregate {
+    nonisolated static func aggregate(_ votes: [PlaceVote], minimumInformativeVotes: Int = 3) -> VoteAggregate {
         let positive = votes.filter { $0.value == .worthVisiting }.count
         let negative = votes.count - positive
         let total = positive + negative
