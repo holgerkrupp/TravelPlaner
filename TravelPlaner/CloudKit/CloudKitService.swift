@@ -21,33 +21,38 @@ struct PublicCloudKitService: CloudKitService {
 
     func fetchPlaces(in region: CoverageRegion) async throws -> [Place] {
         let query = CKQuery(recordType: CloudKitPlaceRecordMapper.recordType, predicate: NSPredicate(value: true))
-        let operation = CKQueryOperation(query: query)
-        operation.resultsLimit = 100
         var records: [CKRecord] = []
-        return try await withCheckedThrowingContinuation { continuation in
-            operation.recordMatchedBlock = { _, result in
-                if case let .success(record) = result { records.append(record) }
+        var cursor: CKQueryOperation.Cursor?
+        repeat {
+            let page: (matchResults: [(CKRecord.ID, Result<CKRecord, Error>)], queryCursor: CKQueryOperation.Cursor?)
+            if let cursor {
+                page = try await database.records(continuingMatchFrom: cursor, resultsLimit: 100)
+            } else {
+                page = try await database.records(matching: query, resultsLimit: 100)
             }
-            operation.queryResultBlock = { result in
-                switch result {
-                case .success:
-                    let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
-                    let places = records.compactMap { record -> Place? in
-                        guard let place = try? CloudKitPlaceRecordMapper.makePlace(from: record) else { return nil }
-                        let location = CLLocation(latitude: place.coordinate.latitude, longitude: place.coordinate.longitude)
-                        return center.distance(from: location) <= region.radius ? place : nil
-                    }
-                    continuation.resume(returning: places)
-                case let .failure(error): continuation.resume(throwing: error)
-                }
-            }
-            database.add(operation)
+            records.append(contentsOf: page.matchResults.compactMap { try? $0.1.get() })
+            cursor = page.queryCursor
+        } while cursor != nil
+
+        let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
+        return records.compactMap { record -> Place? in
+            guard let place = try? CloudKitPlaceRecordMapper.makePlace(from: record) else { return nil }
+            let location = CLLocation(latitude: place.coordinate.latitude, longitude: place.coordinate.longitude)
+            return center.distance(from: location) <= region.radius ? place : nil
         }
     }
 
     func publish(_ places: [Place]) async throws {
         let records = try places.map(CloudKitPlaceRecordMapper.makeRecord)
-        guard !records.isEmpty else { return }
-        _ = try await database.modifyRecords(saving: records, deleting: [])
+        for record in records {
+            do {
+                _ = try await database.save(record)
+            } catch let error as CKError where error.code == .serverRecordChanged {
+                // The deterministic record ID means another device already published
+                // this source object. Treat that as convergence, never as permission
+                // to create a random duplicate.
+                continue
+            }
+        }
     }
 }
