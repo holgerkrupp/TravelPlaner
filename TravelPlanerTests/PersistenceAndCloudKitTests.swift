@@ -164,4 +164,13 @@ final class PersistenceAndCloudKitTests: XCTestCase {
         XCTAssertTrue(store.isEligible(placeID: placeID, now: observedAt.addingTimeInterval(30)))
         XCTAssertFalse(store.isEligible(placeID: placeID, now: observedAt.addingTimeInterval(61)))
     }
+
+    func testSuggestionStatusIsKeptLocallyUntilModeration() throws {
+        let container = try TravelPlanerSchema.container(inMemory: true)
+        let store = SwiftDataSuggestionStore(context: ModelContext(container))
+        let suggestion = try PlaceSuggestion(name: "Local suggestion", coordinate: try GeoCoordinate(latitude: 48, longitude: 11), category: .unusual, reason: "Fixture.")
+
+        store.record(suggestion)
+        XCTAssertEqual(store.all().first?.status, .pending)
+    }
 }

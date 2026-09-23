@@ -97,6 +97,22 @@ import Combine
     var place: Place? { try? JSONDecoder().decode(Place.self, from: placeData) }
 }
 
+@Model final class PersistedSuggestion {
+    @Attribute(.unique) var suggestionID: UUID
+    var suggestionData: Data
+    var status: String
+    var updatedAt: Date
+
+    init(_ suggestion: PlaceSuggestion, updatedAt: Date = .now) {
+        suggestionID = suggestion.id
+        suggestionData = (try? JSONEncoder().encode(suggestion)) ?? Data()
+        status = suggestion.status.rawValue
+        self.updatedAt = updatedAt
+    }
+
+    var suggestion: PlaceSuggestion? { try? JSONDecoder().decode(PlaceSuggestion.self, from: suggestionData) }
+}
+
 enum TravelPlanerSchema {
     static let models: [any PersistentModel.Type] = [
         PersistedTrip.self,
@@ -104,7 +120,8 @@ enum TravelPlanerSchema {
         PersistedVisitEligibility.self,
         PersistedPlaceSnapshot.self,
         PersistedVoteAggregateSnapshot.self,
-        PersistedSavedPlace.self
+        PersistedSavedPlace.self,
+        PersistedSuggestion.self
     ]
 
     static func container(inMemory: Bool = false) throws -> ModelContainer {
@@ -229,6 +246,28 @@ final class SwiftDataVisitEligibilityStore {
     func isEligible(placeID: UUID, now: Date = .now) -> Bool {
         guard let record = (try? context.fetch(FetchDescriptor<PersistedVisitEligibility>()))?.first(where: { $0.placeID == placeID }) else { return false }
         return record.expiresAt >= now
+    }
+}
+
+@MainActor
+final class SwiftDataSuggestionStore {
+    private let context: ModelContext
+
+    init(context: ModelContext) { self.context = context }
+
+    func record(_ suggestion: PlaceSuggestion, now: Date = .now) {
+        if let existing = (try? context.fetch(FetchDescriptor<PersistedSuggestion>()))?.first(where: { $0.suggestionID == suggestion.id }) {
+            existing.suggestionData = (try? JSONEncoder().encode(suggestion)) ?? Data()
+            existing.status = suggestion.status.rawValue
+            existing.updatedAt = now
+        } else {
+            context.insert(PersistedSuggestion(suggestion, updatedAt: now))
+        }
+        try? context.save()
+    }
+
+    func all() -> [PlaceSuggestion] {
+        (try? context.fetch(FetchDescriptor<PersistedSuggestion>()))?.compactMap(\.suggestion) ?? []
     }
 }
 

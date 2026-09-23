@@ -1,7 +1,9 @@
 import SwiftUI
+import SwiftData
 
 struct SuggestionFormView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @State private var name = ""
     @State private var reason = ""
     @State private var latitude = ""
@@ -39,6 +41,7 @@ struct SuggestionFormView: View {
         guard let lat = Double(latitude), let lon = Double(longitude) else { errorMessage = "Enter valid coordinates."; return }
         do {
             let suggestion = try PlaceSuggestion(name: name, coordinate: try GeoCoordinate(latitude: lat, longitude: lon), category: category, reason: reason)
+            SwiftDataSuggestionStore(context: modelContext).record(suggestion)
             try await coordinator.submit(suggestion)
             dismiss()
         } catch { errorMessage = "The suggestion could not be submitted." }

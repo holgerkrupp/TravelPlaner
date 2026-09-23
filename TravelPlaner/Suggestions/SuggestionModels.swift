@@ -2,7 +2,7 @@ import Foundation
 
 enum SuggestionStatus: String, Codable, Sendable { case pending, approved, rejected }
 
-struct PlaceSuggestion: Codable, Equatable, Identifiable, Sendable {
+nonisolated struct PlaceSuggestion: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     var name: String
     var coordinate: GeoCoordinate
