@@ -34,7 +34,23 @@ struct CloudKitSuggestionService: SuggestionCloudService {
 
 actor SuggestionCoordinator {
     private let cloud: any SuggestionCloudService
+    private let offlineQueue: OfflineWriteQueue?
 
-    init(cloud: any SuggestionCloudService = UnavailableSuggestionCloudService()) { self.cloud = cloud }
-    func submit(_ suggestion: PlaceSuggestion) async throws { try await cloud.submit(suggestion) }
+    init(cloud: any SuggestionCloudService = UnavailableSuggestionCloudService(), offlineQueue: OfflineWriteQueue? = nil) {
+        self.cloud = cloud
+        self.offlineQueue = offlineQueue
+    }
+
+    func submit(_ suggestion: PlaceSuggestion) async throws {
+        do {
+            try await cloud.submit(suggestion)
+        } catch {
+            if let offlineQueue {
+                await offlineQueue.enqueue(key: "suggestion:\(suggestion.id.uuidString)", operation: { [cloud] in
+                    try await cloud.submit(suggestion)
+                })
+            }
+            throw error
+        }
+    }
 }

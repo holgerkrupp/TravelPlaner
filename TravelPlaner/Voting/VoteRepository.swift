@@ -74,12 +74,25 @@ struct CloudKitVoteService: VoteCloudService {
 
 actor VoteCoordinator {
     private let cloud: any VoteCloudService
+    private let offlineQueue: OfflineWriteQueue?
 
-    init(cloud: any VoteCloudService = UnavailableVoteCloudService()) { self.cloud = cloud }
+    init(cloud: any VoteCloudService = UnavailableVoteCloudService(), offlineQueue: OfflineWriteQueue? = nil) {
+        self.cloud = cloud
+        self.offlineQueue = offlineQueue
+    }
 
     func submit(_ vote: PlaceVote, eligibility: VisitEligibility) async throws {
         guard eligibility.isEligible else { throw CoordinatorError.visitNotVerified }
-        try await cloud.save(vote)
+        do {
+            try await cloud.save(vote)
+        } catch {
+            if let offlineQueue {
+                await offlineQueue.enqueue(key: "vote:\(vote.placeID.uuidString)", operation: { [cloud] in
+                    try await cloud.save(vote)
+                })
+            }
+            throw error
+        }
     }
 
     func aggregate(for placeID: UUID) async -> VoteAggregate {

@@ -23,6 +23,7 @@ enum AppServiceError: LocalizedError, Equatable, Sendable {
 @MainActor
 final class AppState: ObservableObject {
     @Published private(set) var error: AppServiceError?
+    let offlineWriteQueue = OfflineWriteQueue()
 
     func report(_ error: AppServiceError) { self.error = error }
     func clearError() { error = nil }

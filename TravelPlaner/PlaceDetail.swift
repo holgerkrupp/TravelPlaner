@@ -13,6 +13,7 @@ struct PlaceImageAsset: Codable, Equatable, Identifiable, Sendable {
 }
 
 struct PlaceDetailView: View {
+    @EnvironmentObject private var appState: AppState
     let place: Place
     @State private var voteMessage: String?
     @State private var aggregate: VoteAggregate?
@@ -114,7 +115,7 @@ struct PlaceDetailView: View {
             }
             let cloud = try await CloudKitVoteService.forCurrentUser()
             let vote = PlaceVote(id: UUID(), placeID: place.id, value: value, verification: .currentProximity, coarseVisitMonth: Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: evidence.observedAt)), updatedAt: .now)
-            try await VoteCoordinator(cloud: cloud).submit(vote, eligibility: VisitEligibility(isEligible: true, reason: "Verified proximity"))
+            try await VoteCoordinator(cloud: cloud, offlineQueue: appState.offlineWriteQueue).submit(vote, eligibility: VisitEligibility(isEligible: true, reason: "Verified proximity"))
             aggregate = await VoteCoordinator(cloud: cloud).aggregate(for: place.id)
             voteMessage = "Your vote was saved."
         } catch {

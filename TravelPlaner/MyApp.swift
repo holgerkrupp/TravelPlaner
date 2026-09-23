@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 @main struct MyApp: App {
     private let dependencies = AppDependencies()
@@ -14,6 +15,11 @@ import SwiftData
         WindowGroup {
             ContentView()
                 .environmentObject(appState)
+                .task {
+                    for await _ in NotificationCenter.default.notifications(named: UIApplication.didBecomeActiveNotification) {
+                        _ = await appState.offlineWriteQueue.flush()
+                    }
+                }
         }
         .modelContainer(modelContainer)
     }

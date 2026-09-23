@@ -2,6 +2,7 @@ import MapKit
 import SwiftUI
 
 struct DiscoverView: View {
+    @EnvironmentObject private var appState: AppState
     @State private var places = SamplePlaces.all
     @State private var selectedPlaceID: UUID?
     @State private var camera: MapCameraPosition = .automatic
@@ -41,7 +42,7 @@ struct DiscoverView: View {
                 .disabled(isLocating)
             }
             .sheet(isPresented: $showingSuggestion) {
-                SuggestionFormView(coordinator: SuggestionCoordinator(cloud: CloudKitSuggestionService()))
+                SuggestionFormView(coordinator: SuggestionCoordinator(cloud: CloudKitSuggestionService(), offlineQueue: appState.offlineWriteQueue))
             }
         } detail: {
             Map(position: $camera, selection: $selectedPlaceID) {
