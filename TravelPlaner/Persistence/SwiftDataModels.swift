@@ -8,6 +8,7 @@ import Combine
     var startDate: Date?
     var endDate: Date?
     var destinations: [String]
+    var stopsData: Data
 
     init(_ trip: Trip) {
         id = trip.id
@@ -15,9 +16,15 @@ import Combine
         startDate = trip.startDate
         endDate = trip.endDate
         destinations = trip.destinations
+        stopsData = (try? JSONEncoder().encode(trip.stops)) ?? Data()
     }
 
-    var value: Trip { Trip(id: id, name: name, startDate: startDate, endDate: endDate, destinations: destinations) }
+    var stops: [TripStop] {
+        get { (try? JSONDecoder().decode([TripStop].self, from: stopsData)) ?? [] }
+        set { stopsData = (try? JSONEncoder().encode(newValue)) ?? Data() }
+    }
+
+    var value: Trip { Trip(id: id, name: name, startDate: startDate, endDate: endDate, destinations: destinations, stops: stops) }
 }
 
 @Model final class PersistedInterestSelection {
@@ -84,6 +91,7 @@ final class SwiftDataTripStore: ObservableObject {
         stored.startDate = trip.startDate
         stored.endDate = trip.endDate
         stored.destinations = trip.destinations
+        stored.stops = trip.stops
         saveAndReload()
     }
 

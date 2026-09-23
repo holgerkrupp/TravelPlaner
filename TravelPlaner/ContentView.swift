@@ -21,11 +21,15 @@ struct ContentView: View {
                     ContentUnavailableView("No Trips Yet", systemImage: "airplane", description: Text("Create a trip to start planning."))
                 } else {
                     List(storedTrips, id: \.id) { storedTrip in
-                        VStack(alignment: .leading) {
-                            Text(storedTrip.name).font(.headline)
-                            if !storedTrip.destinations.isEmpty {
-                                Text(storedTrip.destinations.joined(separator: " • "))
-                                    .font(.subheadline).foregroundStyle(.secondary)
+                        NavigationLink {
+                            TripDetailView(trip: storedTrip)
+                        } label: {
+                            VStack(alignment: .leading) {
+                                Text(storedTrip.name).font(.headline)
+                                if !storedTrip.destinations.isEmpty {
+                                    Text(storedTrip.destinations.joined(separator: " • "))
+                                        .font(.subheadline).foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }

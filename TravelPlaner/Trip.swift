@@ -8,19 +8,22 @@ struct Trip: Codable, Identifiable, Equatable, Sendable {
     var startDate: Date?
     var endDate: Date?
     var destinations: [String]
+    var stops: [TripStop]
 
     nonisolated init(
         id: UUID = UUID(),
         name: String,
         startDate: Date? = nil,
         endDate: Date? = nil,
-        destinations: [String] = []
+        destinations: [String] = [],
+        stops: [TripStop] = []
     ) {
         self.id = id
         self.name = name
         self.startDate = startDate
         self.endDate = endDate
         self.destinations = destinations
+        self.stops = stops
     }
 }
 
