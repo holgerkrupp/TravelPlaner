@@ -125,7 +125,10 @@ enum TravelPlanerSchema {
     ]
 
     static func container(inMemory: Bool = false) throws -> ModelContainer {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: inMemory)
+        let configuration = ModelConfiguration(
+            isStoredInMemoryOnly: inMemory,
+            cloudKitDatabase: .none
+        )
         return try ModelContainer(for: Schema(versionedSchema: TravelPlanerSchemaV1.self), migrationPlan: TravelPlanerMigrationPlan.self, configurations: [configuration])
     }
 }
